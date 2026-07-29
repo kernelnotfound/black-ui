@@ -4,7 +4,25 @@
     Fonte: src/*.lua
 ]]
 
-local __modules = {
+local __cache = {}
+local __modules
+local __require
+
+local function __require_impl(path)
+    if __cache[path] ~= nil then
+        return __cache[path]
+    end
+    local loader = __modules[path]
+    if not loader then
+        error("Black UI: modulo nao encontrado: " .. tostring(path), 2)
+    end
+    local result = loader()
+    __cache[path] = result
+    return result
+end
+__require = __require_impl
+
+__modules = {
     ["Components/MobileToggle"] = function()
     --[[
         Black UI Library
@@ -3195,20 +3213,5 @@ local __modules = {
     
     end,
 }
-
-local __cache = {}
-
-local function __require(path)
-    if __cache[path] ~= nil then
-        return __cache[path]
-    end
-    local loader = __modules[path]
-    if not loader then
-        error("Black UI: modulo nao encontrado: " .. tostring(path), 2)
-    end
-    local result = loader()
-    __cache[path] = result
-    return result
-end
 
 return __require("init")

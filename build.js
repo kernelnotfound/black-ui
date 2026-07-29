@@ -98,13 +98,11 @@ function build() {
     Fonte: src/*.lua
 ]]
 
-local __modules = {
-${entries.map((e) => "    " + e.replace(/\n/g, "\n    ")).join("\n")}
-}
-
 local __cache = {}
+local __modules
+local __require
 
-local function __require(path)
+local function __require_impl(path)
     if __cache[path] ~= nil then
         return __cache[path]
     end
@@ -116,6 +114,11 @@ local function __require(path)
     __cache[path] = result
     return result
 end
+__require = __require_impl
+
+__modules = {
+${entries.map((e) => "    " + e.replace(/\n/g, "\n    ")).join("\n")}
+}
 
 return __require("init")
 `;
