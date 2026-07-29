@@ -22,7 +22,9 @@ local Window = Black:CreateWindow({
 ----------------------------------------------------------------------
 local MainTab = Window:CreateTab({ Name = "Main" })
 
-MainTab:CreateProfileCard()
+MainTab:CreateProfileCard({
+    ShowCredit = true, -- exemplo: credito e opt-in, aqui ligamos de proposito
+})
 
 MainTab:CreateSection("Acoes")
 
@@ -48,6 +50,8 @@ MainTab:CreateButton({
 })
 
 MainTab:CreateDivider()
+
+MainTab:CreateTitledDivider("Controles")
 
 local ExampleToggle = MainTab:CreateToggle({
     Name = "Ativar recurso",

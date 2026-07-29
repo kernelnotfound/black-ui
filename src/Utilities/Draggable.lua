@@ -36,17 +36,29 @@ function Draggable.Enable(target, handle, options)
             local camera = workspace.CurrentCamera
             local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
             local absSize = target.AbsoluteSize
+            local anchor = target.AnchorPoint
 
-            local minX, maxX = 0, viewport.X - absSize.X
-            local minY, maxY = 0, viewport.Y - absSize.Y
+            -- Limites em termos do canto top-left real da instancia (independente
+            -- do AnchorPoint), permitindo toda a janela ser arrastada pela tela.
+            local minLeft, maxLeft = 0, viewport.X - absSize.X
+            local minTop, maxTop = 0, viewport.Y - absSize.Y
 
-            -- calcula offset absoluto considerando a escala atual
+            -- Converte de volta para o espaco de "Position" (que e relativo ao
+            -- AnchorPoint), somando o deslocamento do anchor.
+            local anchorOffsetX = anchor.X * absSize.X
+            local anchorOffsetY = anchor.Y * absSize.Y
+
             local scaleX, scaleY = startPos.X.Scale, startPos.Y.Scale
-            local absStartX = scaleX * viewport.X
-            local absStartY = scaleY * viewport.Y
+            local absScaleX = scaleX * viewport.X
+            local absScaleY = scaleY * viewport.Y
 
-            newX = math.clamp(newX, minX - absStartX, maxX - absStartX)
-            newY = math.clamp(newY, minY - absStartY, maxY - absStartY)
+            local minX = minLeft - absScaleX + anchorOffsetX
+            local maxX = maxLeft - absScaleX + anchorOffsetX
+            local minY = minTop - absScaleY + anchorOffsetY
+            local maxY = maxTop - absScaleY + anchorOffsetY
+
+            newX = math.clamp(newX, minX, maxX)
+            newY = math.clamp(newY, minY, maxY)
         end
 
         target.Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)

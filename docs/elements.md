@@ -104,12 +104,13 @@ Tab:CreateColorPicker({
 
 Não depende de nenhuma imagem externa — desenhado com `UIGradient`.
 
-## CreateLabel / CreateParagraph / CreateDivider / CreateSection
+## CreateLabel / CreateParagraph / CreateDivider / CreateTitledDivider / CreateSection
 
 ```lua
 Tab:CreateLabel("Texto simples")
 Tab:CreateParagraph({ Title = "Título", Text = "Corpo do texto." })
 Tab:CreateDivider()
+Tab:CreateTitledDivider("Categoria") -- linha divisória com texto centralizado
 Tab:CreateSection("Nome da seção")
 ```
 
@@ -119,9 +120,11 @@ Tab:CreateSection("Nome da seção")
 Tab:CreateProfileCard({
     HideAvatar = false,
     HideUsername = false,
+    ShowCredit = false, -- opcional; por padrão nenhum crédito é exibido
+    Credit = "Discord: @seu_usuario", -- opcional; se definido, ShowCredit é implícito
 })
 
-Tab:CreateCredit({ Text = "Discord: @falsocrime" }) -- opcional, texto customizável
+Tab:CreateCredit({ Text = "Discord: @seu_usuario" }) -- elemento isolado, totalmente opcional
 ```
 
-`CreateProfileCard` mostra o avatar do jogador local, saudação e um crédito discreto do desenvolvedor.
+`CreateProfileCard` mostra o avatar do jogador local e uma saudação. O crédito do desenvolvedor é opt-in — não aparece a menos que `ShowCredit = true` ou `Credit` seja definido explicitamente.

@@ -142,3 +142,55 @@ Tab.RegisterElement("CreateSection", function(tab, opts)
 
     return { Instance = Holder }
 end)
+
+-- Separador com titulo: uma linha divisoria com um texto centralizado
+-- sobreposto (estilo "--- Titulo ---"), util para quebrar visualmente
+-- grupos de elementos dentro da mesma tab sem precisar de uma nova Section.
+Tab.RegisterElement("CreateTitledDivider", function(tab, opts)
+    if typeof(opts) == "string" then
+        opts = { Text = opts }
+    end
+    opts = opts or {}
+    local theme = Create.GetTheme()
+
+    local Holder = Create.New("Frame", {
+        Name = "TitledDivider_" .. (opts.Text or "Divider"),
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 20),
+        Parent = tab.Page,
+    })
+
+    local LeftLine = Create.New("Frame", {
+        Name = "LeftLine",
+        BackgroundColor3 = Theme_("Border"),
+        AnchorPoint = Vector2.new(0, 0.5),
+        Position = UDim2.new(0, 0, 0.5, 0),
+        Size = UDim2.new(0.5, -8, 0, 1),
+        Parent = Holder,
+    })
+
+    Create.New("TextLabel", {
+        Name = "Text",
+        BackgroundTransparency = 1,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.new(0, 0, 1, 0),
+        AutomaticSize = Enum.AutomaticSize.X,
+        Font = theme.FontSemibold,
+        Text = opts.Text or "",
+        TextColor3 = Theme_("TextSecondary"),
+        TextSize = 11,
+        Parent = Holder,
+    })
+
+    Create.New("Frame", {
+        Name = "RightLine",
+        BackgroundColor3 = Theme_("Border"),
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, 0, 0.5, 0),
+        Size = UDim2.new(0.5, -8, 0, 1),
+        Parent = Holder,
+    })
+
+    return { Instance = Holder }
+end)

@@ -276,7 +276,7 @@ function Window.new(Black, opts)
     })
 
     -- Drag pela topbar (arrasta a sombra, que e o container externo; o Root acompanha por ser filho)
-    Draggable.Enable(self.Shadow, self.Topbar, { ClampToScreen = true })
+    self._dragConn = Draggable.Enable(self.Shadow, self.Topbar, { ClampToScreen = true })
 
     -- Minimize
     local expandedSize = size
@@ -291,7 +291,7 @@ function Window.new(Black, opts)
     end)
 
     -- Keybind global de toggle
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    self._inputConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then
             return
         end
@@ -360,6 +360,14 @@ end
 
 function Window:Destroy()
     self.Destroying:Fire()
+    if self._inputConn then
+        self._inputConn:Disconnect()
+        self._inputConn = nil
+    end
+    if self._dragConn then
+        self._dragConn:Disconnect()
+        self._dragConn = nil
+    end
     self.Shadow:Destroy()
 end
 

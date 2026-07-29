@@ -178,17 +178,29 @@ local __mod_Utilities_Draggable = (function()
                 local camera = workspace.CurrentCamera
                 local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
                 local absSize = target.AbsoluteSize
+                local anchor = target.AnchorPoint
     
-                local minX, maxX = 0, viewport.X - absSize.X
-                local minY, maxY = 0, viewport.Y - absSize.Y
+                -- Limites em termos do canto top-left real da instancia (independente
+                -- do AnchorPoint), permitindo toda a janela ser arrastada pela tela.
+                local minLeft, maxLeft = 0, viewport.X - absSize.X
+                local minTop, maxTop = 0, viewport.Y - absSize.Y
     
-                -- calcula offset absoluto considerando a escala atual
+                -- Converte de volta para o espaco de "Position" (que e relativo ao
+                -- AnchorPoint), somando o deslocamento do anchor.
+                local anchorOffsetX = anchor.X * absSize.X
+                local anchorOffsetY = anchor.Y * absSize.Y
+    
                 local scaleX, scaleY = startPos.X.Scale, startPos.Y.Scale
-                local absStartX = scaleX * viewport.X
-                local absStartY = scaleY * viewport.Y
+                local absScaleX = scaleX * viewport.X
+                local absScaleY = scaleY * viewport.Y
     
-                newX = math.clamp(newX, minX - absStartX, maxX - absStartX)
-                newY = math.clamp(newY, minY - absStartY, maxY - absStartY)
+                local minX = minLeft - absScaleX + anchorOffsetX
+                local maxX = maxLeft - absScaleX + anchorOffsetX
+                local minY = minTop - absScaleY + anchorOffsetY
+                local maxY = maxTop - absScaleY + anchorOffsetY
+    
+                newX = math.clamp(newX, minX, maxX)
+                newY = math.clamp(newY, minY, maxY)
             end
     
             target.Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
@@ -757,8 +769,9 @@ local __mod_Components_ProfileCard = (function()
         "Menu" de hubs privados como o IceHub. Pensado pra ser usado como
         primeiro elemento de uma tab (ex: Window:CreateTab -> Tab:CreateProfileCard()).
     
-        Tambem expoe o rodape de credito do desenvolvedor (Discord: @falsocrime),
-        exibido discretamente dentro do proprio card.
+        O credito do desenvolvedor e OPCIONAL (opt-in): so aparece se
+        ShowCredit=true ou se um texto de Credit for passado explicitamente.
+        Por padrao nenhum credito e exibido.
     ]]
     
     local Players = game:GetService("Players")
@@ -777,6 +790,9 @@ local __mod_Components_ProfileCard = (function()
     
         local hideAvatar = opts.HideAvatar == true
         local hideUsername = opts.HideUsername == true
+        -- O credito do desenvolvedor e opt-in: so aparece se ShowCredit=true ou
+        -- se um texto de Credit for explicitamente fornecido.
+        local showCredit = opts.ShowCredit == true or opts.Credit ~= nil
     
         local Holder = Create.New("Frame", {
             Name = "ProfileCard",
@@ -858,20 +874,23 @@ local __mod_Components_ProfileCard = (function()
             Parent = TextHolder,
         })
     
-        -- Credito do desenvolvedor (discreto, no canto inferior do card)
-        local CreditLabel = Create.New("TextLabel", {
-            Name = "DeveloperCredit",
-            BackgroundTransparency = 1,
-            AnchorPoint = Vector2.new(0, 1),
-            Position = UDim2.new(0, 0, 1, 0),
-            Size = UDim2.new(1, 0, 0, 16),
-            Font = theme.Font,
-            Text = opts.Credit or DEVELOPER_CREDIT,
-            TextColor3 = theme.TextDisabled,
-            TextSize = 11,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Parent = TextHolder,
-        })
+        -- Credito do desenvolvedor: opcional (opt-in via ShowCredit=true ou Credit=texto).
+        -- Nao e exibido por padrao — quem usa a lib decide se quer por.
+        if showCredit then
+            Create.New("TextLabel", {
+                Name = "DeveloperCredit",
+                BackgroundTransparency = 1,
+                AnchorPoint = Vector2.new(0, 1),
+                Position = UDim2.new(0, 0, 1, 0),
+                Size = UDim2.new(1, 0, 0, 16),
+                Font = theme.Font,
+                Text = opts.Credit or DEVELOPER_CREDIT,
+                TextColor3 = theme.TextDisabled,
+                TextSize = 11,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = TextHolder,
+            })
+        end
     
         local api = {
             Instance = Holder,
@@ -2266,6 +2285,58 @@ local __mod_Elements_Label = (function()
         return { Instance = Holder }
     end)
     
+    -- Separador com titulo: uma linha divisoria com um texto centralizado
+    -- sobreposto (estilo "--- Titulo ---"), util para quebrar visualmente
+    -- grupos de elementos dentro da mesma tab sem precisar de uma nova Section.
+    Tab.RegisterElement("CreateTitledDivider", function(tab, opts)
+        if typeof(opts) == "string" then
+            opts = { Text = opts }
+        end
+        opts = opts or {}
+        local theme = Create.GetTheme()
+    
+        local Holder = Create.New("Frame", {
+            Name = "TitledDivider_" .. (opts.Text or "Divider"),
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 20),
+            Parent = tab.Page,
+        })
+    
+        local LeftLine = Create.New("Frame", {
+            Name = "LeftLine",
+            BackgroundColor3 = Theme_("Border"),
+            AnchorPoint = Vector2.new(0, 0.5),
+            Position = UDim2.new(0, 0, 0.5, 0),
+            Size = UDim2.new(0.5, -8, 0, 1),
+            Parent = Holder,
+        })
+    
+        Create.New("TextLabel", {
+            Name = "Text",
+            BackgroundTransparency = 1,
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            Size = UDim2.new(0, 0, 1, 0),
+            AutomaticSize = Enum.AutomaticSize.X,
+            Font = theme.FontSemibold,
+            Text = opts.Text or "",
+            TextColor3 = Theme_("TextSecondary"),
+            TextSize = 11,
+            Parent = Holder,
+        })
+    
+        Create.New("Frame", {
+            Name = "RightLine",
+            BackgroundColor3 = Theme_("Border"),
+            AnchorPoint = Vector2.new(1, 0.5),
+            Position = UDim2.new(1, 0, 0.5, 0),
+            Size = UDim2.new(0.5, -8, 0, 1),
+            Parent = Holder,
+        })
+    
+        return { Instance = Holder }
+    end)
+    
 end)()
 
 -- module: Elements/Slider
@@ -3030,7 +3101,7 @@ local __mod_Window = (function()
         })
     
         -- Drag pela topbar (arrasta a sombra, que e o container externo; o Root acompanha por ser filho)
-        Draggable.Enable(self.Shadow, self.Topbar, { ClampToScreen = true })
+        self._dragConn = Draggable.Enable(self.Shadow, self.Topbar, { ClampToScreen = true })
     
         -- Minimize
         local expandedSize = size
@@ -3045,7 +3116,7 @@ local __mod_Window = (function()
         end)
     
         -- Keybind global de toggle
-        UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        self._inputConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
             if gameProcessed then
                 return
             end
@@ -3114,6 +3185,14 @@ local __mod_Window = (function()
     
     function Window:Destroy()
         self.Destroying:Fire()
+        if self._inputConn then
+            self._inputConn:Disconnect()
+            self._inputConn = nil
+        end
+        if self._dragConn then
+            self._dragConn:Disconnect()
+            self._dragConn = nil
+        end
         self.Shadow:Destroy()
     end
     
@@ -3150,6 +3229,24 @@ local __mod_init = (function()
     local protectgui = protectgui or (syn and syn.protect_gui) or function() end
     local gethui = gethui or function()
         return CoreGui
+    end
+    local getgenv = getgenv or function()
+        return shared
+    end
+    
+    -- Execucao unica (singleton): se o script for executado de novo (ex: colar
+    -- o loadstring outra vez no executor), a instancia anterior da Black UI e
+    -- destruida por completo antes de criar a nova, evitando duas janelas/
+    -- ScreenGuis coexistindo e handlers de input duplicados.
+    do
+        local env = getgenv()
+        local previous = env.__BlackUIActiveInstance
+        if previous then
+            pcall(function()
+                previous:Destroy()
+            end)
+            env.__BlackUIActiveInstance = nil
+        end
     end
     
     local Create = __mod_Utilities_Create
@@ -3201,6 +3298,11 @@ local __mod_init = (function()
     
     Black.ScreenGui = ScreenGui
     
+    do
+        local env = getgenv()
+        env.__BlackUIActiveInstance = Black
+    end
+    
     --[[
         Black:CreateWindow(opts)
         opts:
@@ -3245,7 +3347,9 @@ local __mod_init = (function()
     
     --[[
         Black:Destroy()
-        Remove toda a UI da tela. Chamar ao descarregar o script.
+        Remove toda a UI da tela e desconecta todos os handlers globais
+        (keybinds, etc). Chamar ao descarregar o script — tambem e chamado
+        automaticamente se o script for executado de novo (ver topo do arquivo).
     ]]
     function Black:Destroy()
         for _, window in self.Windows do

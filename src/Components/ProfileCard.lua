@@ -6,8 +6,9 @@
     "Menu" de hubs privados como o IceHub. Pensado pra ser usado como
     primeiro elemento de uma tab (ex: Window:CreateTab -> Tab:CreateProfileCard()).
 
-    Tambem expoe o rodape de credito do desenvolvedor (Discord: @falsocrime),
-    exibido discretamente dentro do proprio card.
+    O credito do desenvolvedor e OPCIONAL (opt-in): so aparece se
+    ShowCredit=true ou se um texto de Credit for passado explicitamente.
+    Por padrao nenhum credito e exibido.
 ]]
 
 local Players = game:GetService("Players")
@@ -26,6 +27,9 @@ Tab.RegisterElement("CreateProfileCard", function(tab, opts)
 
     local hideAvatar = opts.HideAvatar == true
     local hideUsername = opts.HideUsername == true
+    -- O credito do desenvolvedor e opt-in: so aparece se ShowCredit=true ou
+    -- se um texto de Credit for explicitamente fornecido.
+    local showCredit = opts.ShowCredit == true or opts.Credit ~= nil
 
     local Holder = Create.New("Frame", {
         Name = "ProfileCard",
@@ -107,20 +111,23 @@ Tab.RegisterElement("CreateProfileCard", function(tab, opts)
         Parent = TextHolder,
     })
 
-    -- Credito do desenvolvedor (discreto, no canto inferior do card)
-    local CreditLabel = Create.New("TextLabel", {
-        Name = "DeveloperCredit",
-        BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(0, 1),
-        Position = UDim2.new(0, 0, 1, 0),
-        Size = UDim2.new(1, 0, 0, 16),
-        Font = theme.Font,
-        Text = opts.Credit or DEVELOPER_CREDIT,
-        TextColor3 = theme.TextDisabled,
-        TextSize = 11,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Parent = TextHolder,
-    })
+    -- Credito do desenvolvedor: opcional (opt-in via ShowCredit=true ou Credit=texto).
+    -- Nao e exibido por padrao — quem usa a lib decide se quer por.
+    if showCredit then
+        Create.New("TextLabel", {
+            Name = "DeveloperCredit",
+            BackgroundTransparency = 1,
+            AnchorPoint = Vector2.new(0, 1),
+            Position = UDim2.new(0, 0, 1, 0),
+            Size = UDim2.new(1, 0, 0, 16),
+            Font = theme.Font,
+            Text = opts.Credit or DEVELOPER_CREDIT,
+            TextColor3 = theme.TextDisabled,
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = TextHolder,
+        })
+    end
 
     local api = {
         Instance = Holder,

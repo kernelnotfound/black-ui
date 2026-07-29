@@ -26,6 +26,24 @@ local protectgui = protectgui or (syn and syn.protect_gui) or function() end
 local gethui = gethui or function()
     return CoreGui
 end
+local getgenv = getgenv or function()
+    return shared
+end
+
+-- Execucao unica (singleton): se o script for executado de novo (ex: colar
+-- o loadstring outra vez no executor), a instancia anterior da Black UI e
+-- destruida por completo antes de criar a nova, evitando duas janelas/
+-- ScreenGuis coexistindo e handlers de input duplicados.
+do
+    local env = getgenv()
+    local previous = env.__BlackUIActiveInstance
+    if previous then
+        pcall(function()
+            previous:Destroy()
+        end)
+        env.__BlackUIActiveInstance = nil
+    end
+end
 
 local Create = require(script.Utilities.Create)
 local Theme = require(script.Utilities.Theme)
@@ -76,6 +94,11 @@ end
 
 Black.ScreenGui = ScreenGui
 
+do
+    local env = getgenv()
+    env.__BlackUIActiveInstance = Black
+end
+
 --[[
     Black:CreateWindow(opts)
     opts:
@@ -120,7 +143,9 @@ end
 
 --[[
     Black:Destroy()
-    Remove toda a UI da tela. Chamar ao descarregar o script.
+    Remove toda a UI da tela e desconecta todos os handlers globais
+    (keybinds, etc). Chamar ao descarregar o script — tambem e chamado
+    automaticamente se o script for executado de novo (ver topo do arquivo).
 ]]
 function Black:Destroy()
     for _, window in self.Windows do
