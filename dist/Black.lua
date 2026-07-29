@@ -328,6 +328,124 @@ local __mod_Utilities_Tween = (function()
     
 end)()
 
+-- module: Components/FloatingBubble
+local __mod_Components_FloatingBubble = (function()
+    --[[
+        Black UI Library
+        Components/FloatingBubble.lua
+    
+        Botao circular flutuante e arrastavel (livremente pela tela, com clamp),
+        usado tanto pelo MobileToggle (automatico em dispositivos touch) quanto
+        pelo MinimizeStyle == "Bubble" do Window (escolha explicita de quem
+        codifica o script, disponivel em qualquer plataforma).
+    ]]
+    
+    local Create = __mod_Utilities_Create
+    local Draggable = __mod_Utilities_Draggable
+    local Tween = __mod_Utilities_Tween
+    local Theme_ = Create.Theme
+    
+    local FloatingBubble = {}
+    
+    -- opts:
+    --   Parent (Instance)         - onde a bolha e parentada (ex: Black.ScreenGui)
+    --   Position (UDim2?)         - posicao inicial (default: canto superior esquerdo)
+    --   Icon (string?)            - rbxassetid:// do icone customizado (whitelabel)
+    --   IconColor (Color3?)
+    --   Glyph (string?)           - texto usado se nenhum Icon for fornecido (default: "B")
+    --   OnClick (function)        - chamado ao clicar (nao ao arrastar)
+    function FloatingBubble.Create(opts)
+        opts = opts or {}
+        local theme = Create.GetTheme()
+    
+        local Bubble = Create.New("Frame", {
+            Name = "FloatingBubble",
+            BackgroundColor3 = Theme_("Surface"),
+            AnchorPoint = Vector2.new(0, 0),
+            Position = opts.Position or UDim2.fromOffset(16, 120),
+            Size = UDim2.fromOffset(48, 48),
+            Parent = opts.Parent,
+            Children = {
+                Create.New("UICorner", { CornerRadius = UDim.new(1, 0) }),
+                Create.New("UIStroke", { Color = Theme_("BorderStrong"), Thickness = 1 }),
+            },
+        })
+    
+        if opts.Icon and opts.Icon ~= "" then
+            Create.New("ImageLabel", {
+                Name = "Icon",
+                BackgroundTransparency = 1,
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                Position = UDim2.fromScale(0.5, 0.5),
+                Size = UDim2.fromOffset(24, 24),
+                Image = opts.Icon,
+                ImageColor3 = opts.IconColor or Color3.fromRGB(255, 255, 255),
+                Parent = Bubble,
+            })
+        else
+            Create.New("TextLabel", {
+                Name = "Glyph",
+                BackgroundTransparency = 1,
+                Size = UDim2.fromScale(1, 1),
+                Font = theme.FontBold,
+                Text = opts.Glyph or "B",
+                TextColor3 = Theme_("Text"),
+                TextSize = 18,
+                Parent = Bubble,
+            })
+        end
+    
+        local HitButton = Create.New("TextButton", {
+            BackgroundTransparency = 1,
+            Size = UDim2.fromScale(1, 1),
+            Text = "",
+            Parent = Bubble,
+        })
+    
+        local dragHandle = Draggable.Enable(Bubble, Bubble, { ClampToScreen = true })
+    
+        -- Evita que o "click" dispare apos um drag longo:
+        -- so aciona o callback se o movimento total foi pequeno.
+        local pressStart = nil
+    
+        HitButton.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+                pressStart = input.Position
+            end
+        end)
+    
+        HitButton.InputEnded:Connect(function(input)
+            if not pressStart then
+                return
+            end
+            if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+                local moved = (input.Position - pressStart).Magnitude
+                if moved < 8 and opts.OnClick then
+                    Tween.Play(Bubble, theme.TweenFast, { Size = UDim2.fromOffset(42, 42) })
+                    task.delay(0.1, function()
+                        Tween.Play(Bubble, theme.TweenFast, { Size = UDim2.fromOffset(48, 48) })
+                    end)
+                    opts.OnClick()
+                end
+                pressStart = nil
+            end
+        end)
+    
+        return {
+            Instance = Bubble,
+            Destroy = function()
+                if dragHandle then
+                    dragHandle.Disconnect()
+                end
+                Bubble:Destroy()
+            end,
+        }
+    end
+    
+    return FloatingBubble
+    
+end)()
+
 -- module: Utilities/Platform
 local __mod_Utilities_Platform = (function()
     --[[
@@ -395,13 +513,12 @@ local __mod_Components_MobileToggle = (function()
         Botao flutuante arrastavel exibido apenas em dispositivos mobile
         (touch), usado para mostrar/esconder a janela principal sem
         depender de teclado (o keybind RightControl nao existe no celular).
+        Reaproveita o componente FloatingBubble (compartilhado com o
+        MinimizeStyle == "Bubble" do Window).
     ]]
     
-    local Create = __mod_Utilities_Create
-    local Draggable = __mod_Utilities_Draggable
-    local Tween = __mod_Utilities_Tween
     local Platform = __mod_Utilities_Platform
-    local Theme_ = Create.Theme
+    local FloatingBubble = __mod_Components_FloatingBubble
     
     local MobileToggle = {}
     
@@ -410,70 +527,13 @@ local __mod_Components_MobileToggle = (function()
             return nil
         end
     
-        local theme = Create.GetTheme()
-    
-        local Bubble = Create.New("Frame", {
-            Name = "MobileToggle",
-            BackgroundColor3 = Theme_("Surface"),
-            AnchorPoint = Vector2.new(0, 0),
-            Position = UDim2.fromOffset(16, 120),
-            Size = UDim2.fromOffset(48, 48),
+        return FloatingBubble.Create({
             Parent = Black.ScreenGui,
-            Children = {
-                Create.New("UICorner", { CornerRadius = UDim.new(1, 0) }),
-                Create.New("UIStroke", { Color = Theme_("BorderStrong"), Thickness = 1 }),
-            },
-        })
-    
-        local Glyph = Create.New("TextLabel", {
-            BackgroundTransparency = 1,
-            Size = UDim2.fromScale(1, 1),
-            Font = theme.FontBold,
-            Text = "B",
-            TextColor3 = Theme_("Text"),
-            TextSize = 18,
-            Parent = Bubble,
-        })
-    
-        local HitButton = Create.New("TextButton", {
-            BackgroundTransparency = 1,
-            Size = UDim2.fromScale(1, 1),
-            Text = "",
-            Parent = Bubble,
-        })
-    
-        Draggable.Enable(Bubble, Bubble, { ClampToScreen = true })
-    
-        -- Evita que o "click" dispare apos um drag longo:
-        -- so alterna se o movimento total foi pequeno.
-        local pressStart = nil
-        local startPos = nil
-    
-        HitButton.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-                pressStart = input.Position
-                startPos = Bubble.Position
-            end
-        end)
-    
-        HitButton.InputEnded:Connect(function(input)
-            if not pressStart then
-                return
-            end
-            if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-                local moved = (input.Position - pressStart).Magnitude
-                if moved < 8 then
-                    window:SetVisible(not window.Toggled)
-                    Tween.Play(Bubble, theme.TweenFast, { Size = UDim2.fromOffset(42, 42) })
-                    task.delay(0.1, function()
-                        Tween.Play(Bubble, theme.TweenFast, { Size = UDim2.fromOffset(48, 48) })
-                    end)
-                end
-                pressStart = nil
-            end
-        end)
-    
-        return Bubble
+            Position = UDim2.fromOffset(16, 120),
+            OnClick = function()
+                window:SetVisible(not window.Toggled)
+            end,
+        }).Instance
     end
     
     return MobileToggle
@@ -2875,6 +2935,7 @@ local __mod_Window = (function()
     local Tween = __mod_Utilities_Tween
     local Platform = __mod_Utilities_Platform
     local Signal = __mod_Utilities_Signal
+    local FloatingBubble = __mod_Components_FloatingBubble
     local Theme_ = Create.Theme
     
     local Window = {}
@@ -2909,9 +2970,12 @@ local __mod_Window = (function()
         self.Minimized = false
         -- Estilo de minimizacao (decidido por quem cria a janela, via CreateWindow):
         --   "Compact"    (default) - colapsa para uma barra pequena no lugar da janela
-        --   "TopbarIcon" - esconde a janela e mostra um icone fixo perto da barra
+        --   "TopbarIcon" - esconde a janela e mostra um icone FIXO perto da barra
         --                  nativa do Roblox (canto superior esquerdo), que restaura
         --                  a janela ao ser clicado
+        --   "Bubble"     - esconde a janela e mostra uma bolha flutuante e
+        --                  ARRASTAVEL livremente pela tela, que restaura a
+        --                  janela ao ser clicada (nao arrastada)
         self.MinimizeStyle = opts.MinimizeStyle or "Compact"
     
         self.Destroying = Signal.new()
@@ -3168,68 +3232,83 @@ local __mod_Window = (function()
             end)
         end
     
-        -- Icone fixo estilo "TopbarIcon": botao redondo perto da barra nativa
-        -- do Roblox (canto superior esquerdo), usado apenas quando
-        -- MinimizeStyle == "TopbarIcon". Fica oculto enquanto a janela nao
-        -- estiver minimizada. Posicionado apos a barra nativa de icones do
-        -- Roblox (ver DEFAULT_TOPBAR_ICON_X); ajustavel via opts.TopbarIconPosition
-        -- caso fique sobreposto aos icones nativos em algum jogo especifico.
-        local GuiService = game:GetService("GuiService")
-        local nativeInsetTop = select(1, GuiService:GetGuiInset()).Y
-        local iconSize = 32
-        local iconY = math.max(4, (nativeInsetTop - iconSize) / 2)
+        -- Icone fixo estilo "TopbarIcon": criado apenas se esse for o estilo
+        -- escolhido, posicionado apos a barra nativa de icones do Roblox (ver
+        -- DEFAULT_TOPBAR_ICON_X); ajustavel via opts.TopbarIconPosition caso
+        -- fique sobreposto aos icones nativos em algum jogo especifico.
+        if self.MinimizeStyle == "TopbarIcon" then
+            local GuiService = game:GetService("GuiService")
+            local nativeInsetTop = select(1, GuiService:GetGuiInset()).Y
+            local iconSize = 32
+            local iconY = math.max(4, (nativeInsetTop - iconSize) / 2)
     
-        self.TopbarIconButton = Create.New("TextButton", {
-            Name = "TopbarIconRestore",
-            BackgroundColor3 = Theme_("SurfaceElevated"),
-            AnchorPoint = Vector2.new(0, 0),
-            Position = opts.TopbarIconPosition or UDim2.fromOffset(DEFAULT_TOPBAR_ICON_X, iconY),
-            Size = UDim2.fromOffset(iconSize, iconSize),
-            AutoButtonColor = false,
-            Visible = false,
-            Text = "",
-            ZIndex = 50,
-            Parent = Black.ScreenGui,
-            Children = {
-                Create.New("UICorner", { CornerRadius = theme.CornerRadiusPill }),
-                Create.New("UIStroke", { Color = Theme_("BorderStrong"), Thickness = 1, Transparency = 0.3 }),
-            },
-        })
+            self.TopbarIconButton = Create.New("TextButton", {
+                Name = "TopbarIconRestore",
+                BackgroundColor3 = Theme_("SurfaceElevated"),
+                AnchorPoint = Vector2.new(0, 0),
+                Position = opts.TopbarIconPosition or UDim2.fromOffset(DEFAULT_TOPBAR_ICON_X, iconY),
+                Size = UDim2.fromOffset(iconSize, iconSize),
+                AutoButtonColor = false,
+                Visible = false,
+                Text = "",
+                ZIndex = 50,
+                Parent = Black.ScreenGui,
+                Children = {
+                    Create.New("UICorner", { CornerRadius = theme.CornerRadiusPill }),
+                    Create.New("UIStroke", { Color = Theme_("BorderStrong"), Thickness = 1, Transparency = 0.3 }),
+                },
+            })
     
-        if hasIcon then
-            Create.New("ImageLabel", {
-                Name = "Icon",
-                BackgroundTransparency = 1,
-                AnchorPoint = Vector2.new(0.5, 0.5),
-                Position = UDim2.fromScale(0.5, 0.5),
-                Size = UDim2.fromOffset(16, 16),
-                Image = opts.Icon,
-                ImageColor3 = opts.IconColor or Color3.fromRGB(255, 255, 255),
-                ZIndex = 51,
-                Parent = self.TopbarIconButton,
+            if hasIcon then
+                Create.New("ImageLabel", {
+                    Name = "Icon",
+                    BackgroundTransparency = 1,
+                    AnchorPoint = Vector2.new(0.5, 0.5),
+                    Position = UDim2.fromScale(0.5, 0.5),
+                    Size = UDim2.fromOffset(16, 16),
+                    Image = opts.Icon,
+                    ImageColor3 = opts.IconColor or Color3.fromRGB(255, 255, 255),
+                    ZIndex = 51,
+                    Parent = self.TopbarIconButton,
+                })
+            else
+                Create.New("TextLabel", {
+                    Name = "Glyph",
+                    BackgroundTransparency = 1,
+                    Size = UDim2.fromScale(1, 1),
+                    Font = Theme_("FontBold"),
+                    Text = string.sub(self.Name, 1, 1):upper(),
+                    TextColor3 = Theme_("Text"),
+                    TextSize = 14,
+                    ZIndex = 51,
+                    Parent = self.TopbarIconButton,
+                })
+            end
+    
+            Tween.ApplyHoverPress(self.TopbarIconButton, {
+                Normal = theme.SurfaceElevated,
+                Hover = theme.SurfaceHover,
+            }, theme)
+    
+            self.TopbarIconButton.MouseButton1Click:Connect(function()
+                self:ToggleMinimize()
+            end)
+        elseif self.MinimizeStyle == "Bubble" then
+            -- Bolha flutuante e arrastavel: comeca oculta, aparece apenas
+            -- enquanto a janela estiver minimizada. Reaproveita FloatingBubble
+            -- (mesmo componente usado pelo MobileToggle automatico em mobile).
+            self.Bubble = FloatingBubble.Create({
+                Parent = Black.ScreenGui,
+                Position = opts.BubblePosition or UDim2.fromOffset(16, 120),
+                Icon = opts.Icon,
+                IconColor = opts.IconColor,
+                Glyph = string.sub(self.Name, 1, 1):upper(),
+                OnClick = function()
+                    self:ToggleMinimize()
+                end,
             })
-        else
-            Create.New("TextLabel", {
-                Name = "Glyph",
-                BackgroundTransparency = 1,
-                Size = UDim2.fromScale(1, 1),
-                Font = Theme_("FontBold"),
-                Text = string.sub(self.Name, 1, 1):upper(),
-                TextColor3 = Theme_("Text"),
-                TextSize = 14,
-                ZIndex = 51,
-                Parent = self.TopbarIconButton,
-            })
+            self.Bubble.Instance.Visible = false
         end
-    
-        Tween.ApplyHoverPress(self.TopbarIconButton, {
-            Normal = theme.SurfaceElevated,
-            Hover = theme.SurfaceHover,
-        }, theme)
-    
-        self.TopbarIconButton.MouseButton1Click:Connect(function()
-            self:ToggleMinimize()
-        end)
     
         -- Minimize
         local expandedSize = size
@@ -3277,6 +3356,19 @@ local __mod_Window = (function()
                 end)
             end
             return
+        elseif self.MinimizeStyle == "Bubble" then
+            if self.Minimized then
+                -- Esconde a janela inteira e mostra a bolha flutuante/arrastavel.
+                self.Shadow.Visible = false
+                self.Bubble.Instance.Visible = true
+            else
+                self.Shadow.Visible = true
+                self.Bubble.Instance.Visible = false
+                task.delay(0, function()
+                    Draggable.ClampToScreen(self.Shadow)
+                end)
+            end
+            return
         end
     
         -- Estilo "Compact" (default): colapsa para uma barra pequena.
@@ -3300,10 +3392,23 @@ local __mod_Window = (function()
     
     function Window:SetVisible(visible)
         self.Toggled = visible
-        self.Shadow.Visible = visible and not (self.MinimizeStyle == "TopbarIcon" and self.Minimized)
-        if not visible and self.MinimizeStyle == "TopbarIcon" then
-            self.TopbarIconButton.Visible = false
+    
+        -- RightControl (ou o botao Close) deve OCULTAR qualquer representacao
+        -- visual atual do script, seja a janela cheia OU a forma minimizada
+        -- (icone fixo / bolha) — sem alterar self.Minimized. Minimizar e ocultar
+        -- sao acoes independentes: minimizar mantem o script visivel (reduzido);
+        -- ocultar esconde tudo, e "lembra" da forma minimizada ao restaurar.
+        if self.Minimized then
+            if self.MinimizeStyle == "TopbarIcon" then
+                self.TopbarIconButton.Visible = visible
+                return
+            elseif self.MinimizeStyle == "Bubble" then
+                self.Bubble.Instance.Visible = visible
+                return
+            end
         end
+    
+        self.Shadow.Visible = visible
     end
     
     function Window:CreateTab(opts)
@@ -3354,6 +3459,10 @@ local __mod_Window = (function()
         if self.TopbarIconButton then
             self.TopbarIconButton:Destroy()
             self.TopbarIconButton = nil
+        end
+        if self.Bubble then
+            self.Bubble.Destroy()
+            self.Bubble = nil
         end
         self.Shadow:Destroy()
     end

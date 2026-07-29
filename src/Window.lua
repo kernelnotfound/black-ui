@@ -15,6 +15,7 @@ local Draggable = require(script.Parent.Utilities.Draggable)
 local Tween = require(script.Parent.Utilities.Tween)
 local Platform = require(script.Parent.Utilities.Platform)
 local Signal = require(script.Parent.Utilities.Signal)
+local FloatingBubble = require(script.Parent.Components.FloatingBubble)
 local Theme_ = Create.Theme
 
 local Window = {}
@@ -49,9 +50,12 @@ function Window.new(Black, opts)
     self.Minimized = false
     -- Estilo de minimizacao (decidido por quem cria a janela, via CreateWindow):
     --   "Compact"    (default) - colapsa para uma barra pequena no lugar da janela
-    --   "TopbarIcon" - esconde a janela e mostra um icone fixo perto da barra
+    --   "TopbarIcon" - esconde a janela e mostra um icone FIXO perto da barra
     --                  nativa do Roblox (canto superior esquerdo), que restaura
     --                  a janela ao ser clicado
+    --   "Bubble"     - esconde a janela e mostra uma bolha flutuante e
+    --                  ARRASTAVEL livremente pela tela, que restaura a
+    --                  janela ao ser clicada (nao arrastada)
     self.MinimizeStyle = opts.MinimizeStyle or "Compact"
 
     self.Destroying = Signal.new()
@@ -308,68 +312,83 @@ function Window.new(Black, opts)
         end)
     end
 
-    -- Icone fixo estilo "TopbarIcon": botao redondo perto da barra nativa
-    -- do Roblox (canto superior esquerdo), usado apenas quando
-    -- MinimizeStyle == "TopbarIcon". Fica oculto enquanto a janela nao
-    -- estiver minimizada. Posicionado apos a barra nativa de icones do
-    -- Roblox (ver DEFAULT_TOPBAR_ICON_X); ajustavel via opts.TopbarIconPosition
-    -- caso fique sobreposto aos icones nativos em algum jogo especifico.
-    local GuiService = game:GetService("GuiService")
-    local nativeInsetTop = select(1, GuiService:GetGuiInset()).Y
-    local iconSize = 32
-    local iconY = math.max(4, (nativeInsetTop - iconSize) / 2)
+    -- Icone fixo estilo "TopbarIcon": criado apenas se esse for o estilo
+    -- escolhido, posicionado apos a barra nativa de icones do Roblox (ver
+    -- DEFAULT_TOPBAR_ICON_X); ajustavel via opts.TopbarIconPosition caso
+    -- fique sobreposto aos icones nativos em algum jogo especifico.
+    if self.MinimizeStyle == "TopbarIcon" then
+        local GuiService = game:GetService("GuiService")
+        local nativeInsetTop = select(1, GuiService:GetGuiInset()).Y
+        local iconSize = 32
+        local iconY = math.max(4, (nativeInsetTop - iconSize) / 2)
 
-    self.TopbarIconButton = Create.New("TextButton", {
-        Name = "TopbarIconRestore",
-        BackgroundColor3 = Theme_("SurfaceElevated"),
-        AnchorPoint = Vector2.new(0, 0),
-        Position = opts.TopbarIconPosition or UDim2.fromOffset(DEFAULT_TOPBAR_ICON_X, iconY),
-        Size = UDim2.fromOffset(iconSize, iconSize),
-        AutoButtonColor = false,
-        Visible = false,
-        Text = "",
-        ZIndex = 50,
-        Parent = Black.ScreenGui,
-        Children = {
-            Create.New("UICorner", { CornerRadius = theme.CornerRadiusPill }),
-            Create.New("UIStroke", { Color = Theme_("BorderStrong"), Thickness = 1, Transparency = 0.3 }),
-        },
-    })
+        self.TopbarIconButton = Create.New("TextButton", {
+            Name = "TopbarIconRestore",
+            BackgroundColor3 = Theme_("SurfaceElevated"),
+            AnchorPoint = Vector2.new(0, 0),
+            Position = opts.TopbarIconPosition or UDim2.fromOffset(DEFAULT_TOPBAR_ICON_X, iconY),
+            Size = UDim2.fromOffset(iconSize, iconSize),
+            AutoButtonColor = false,
+            Visible = false,
+            Text = "",
+            ZIndex = 50,
+            Parent = Black.ScreenGui,
+            Children = {
+                Create.New("UICorner", { CornerRadius = theme.CornerRadiusPill }),
+                Create.New("UIStroke", { Color = Theme_("BorderStrong"), Thickness = 1, Transparency = 0.3 }),
+            },
+        })
 
-    if hasIcon then
-        Create.New("ImageLabel", {
-            Name = "Icon",
-            BackgroundTransparency = 1,
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.fromScale(0.5, 0.5),
-            Size = UDim2.fromOffset(16, 16),
-            Image = opts.Icon,
-            ImageColor3 = opts.IconColor or Color3.fromRGB(255, 255, 255),
-            ZIndex = 51,
-            Parent = self.TopbarIconButton,
+        if hasIcon then
+            Create.New("ImageLabel", {
+                Name = "Icon",
+                BackgroundTransparency = 1,
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                Position = UDim2.fromScale(0.5, 0.5),
+                Size = UDim2.fromOffset(16, 16),
+                Image = opts.Icon,
+                ImageColor3 = opts.IconColor or Color3.fromRGB(255, 255, 255),
+                ZIndex = 51,
+                Parent = self.TopbarIconButton,
+            })
+        else
+            Create.New("TextLabel", {
+                Name = "Glyph",
+                BackgroundTransparency = 1,
+                Size = UDim2.fromScale(1, 1),
+                Font = Theme_("FontBold"),
+                Text = string.sub(self.Name, 1, 1):upper(),
+                TextColor3 = Theme_("Text"),
+                TextSize = 14,
+                ZIndex = 51,
+                Parent = self.TopbarIconButton,
+            })
+        end
+
+        Tween.ApplyHoverPress(self.TopbarIconButton, {
+            Normal = theme.SurfaceElevated,
+            Hover = theme.SurfaceHover,
+        }, theme)
+
+        self.TopbarIconButton.MouseButton1Click:Connect(function()
+            self:ToggleMinimize()
+        end)
+    elseif self.MinimizeStyle == "Bubble" then
+        -- Bolha flutuante e arrastavel: comeca oculta, aparece apenas
+        -- enquanto a janela estiver minimizada. Reaproveita FloatingBubble
+        -- (mesmo componente usado pelo MobileToggle automatico em mobile).
+        self.Bubble = FloatingBubble.Create({
+            Parent = Black.ScreenGui,
+            Position = opts.BubblePosition or UDim2.fromOffset(16, 120),
+            Icon = opts.Icon,
+            IconColor = opts.IconColor,
+            Glyph = string.sub(self.Name, 1, 1):upper(),
+            OnClick = function()
+                self:ToggleMinimize()
+            end,
         })
-    else
-        Create.New("TextLabel", {
-            Name = "Glyph",
-            BackgroundTransparency = 1,
-            Size = UDim2.fromScale(1, 1),
-            Font = Theme_("FontBold"),
-            Text = string.sub(self.Name, 1, 1):upper(),
-            TextColor3 = Theme_("Text"),
-            TextSize = 14,
-            ZIndex = 51,
-            Parent = self.TopbarIconButton,
-        })
+        self.Bubble.Instance.Visible = false
     end
-
-    Tween.ApplyHoverPress(self.TopbarIconButton, {
-        Normal = theme.SurfaceElevated,
-        Hover = theme.SurfaceHover,
-    }, theme)
-
-    self.TopbarIconButton.MouseButton1Click:Connect(function()
-        self:ToggleMinimize()
-    end)
 
     -- Minimize
     local expandedSize = size
@@ -417,6 +436,19 @@ function Window:ToggleMinimize()
             end)
         end
         return
+    elseif self.MinimizeStyle == "Bubble" then
+        if self.Minimized then
+            -- Esconde a janela inteira e mostra a bolha flutuante/arrastavel.
+            self.Shadow.Visible = false
+            self.Bubble.Instance.Visible = true
+        else
+            self.Shadow.Visible = true
+            self.Bubble.Instance.Visible = false
+            task.delay(0, function()
+                Draggable.ClampToScreen(self.Shadow)
+            end)
+        end
+        return
     end
 
     -- Estilo "Compact" (default): colapsa para uma barra pequena.
@@ -440,10 +472,23 @@ end
 
 function Window:SetVisible(visible)
     self.Toggled = visible
-    self.Shadow.Visible = visible and not (self.MinimizeStyle == "TopbarIcon" and self.Minimized)
-    if not visible and self.MinimizeStyle == "TopbarIcon" then
-        self.TopbarIconButton.Visible = false
+
+    -- RightControl (ou o botao Close) deve OCULTAR qualquer representacao
+    -- visual atual do script, seja a janela cheia OU a forma minimizada
+    -- (icone fixo / bolha) — sem alterar self.Minimized. Minimizar e ocultar
+    -- sao acoes independentes: minimizar mantem o script visivel (reduzido);
+    -- ocultar esconde tudo, e "lembra" da forma minimizada ao restaurar.
+    if self.Minimized then
+        if self.MinimizeStyle == "TopbarIcon" then
+            self.TopbarIconButton.Visible = visible
+            return
+        elseif self.MinimizeStyle == "Bubble" then
+            self.Bubble.Instance.Visible = visible
+            return
+        end
     end
+
+    self.Shadow.Visible = visible
 end
 
 function Window:CreateTab(opts)
@@ -494,6 +539,10 @@ function Window:Destroy()
     if self.TopbarIconButton then
         self.TopbarIconButton:Destroy()
         self.TopbarIconButton = nil
+    end
+    if self.Bubble then
+        self.Bubble.Destroy()
+        self.Bubble = nil
     end
     self.Shadow:Destroy()
 end
