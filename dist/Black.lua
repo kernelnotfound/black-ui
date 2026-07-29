@@ -2,28 +2,339 @@
     BLACK UI LIBRARY
     Bundled build — gerado automaticamente por build.js. NAO EDITE A MAO.
     Fonte: src/*.lua
+
+    Arquivo unico monolitico (sem sistema de "require" em tempo de
+    execucao), no mesmo padrao usado por libs de UI Roblox consolidadas.
 ]]
 
-local __cache = {}
-local __modules
-local __require
-
-local function __require_impl(path)
-    if __cache[path] ~= nil then
-        return __cache[path]
+-- module: Utilities/Create
+local __mod_Utilities_Create = (function()
+    --[[
+        Black UI Library
+        Utilities/Create.lua
+    
+        Wrapper para Instance.new que:
+        - Aplica propriedades de uma tabela
+        - Registra propriedades ligadas ao tema (para retema em runtime)
+        - Suporta filhos aninhados via campo `Children`
+    
+        Inspirado no padrao "New()" do Obsidian, porem mais leve: em vez de
+        reescrever TODAS as instancias sempre que o tema muda, guardamos uma
+        lista de (instance, property, themeKey) e so atualizamos essas.
+    ]]
+    
+    local Create = {}
+    
+    -- Registry global: { [Instance] = { [Property] = ThemeKey } }
+    Create.Registry = {}
+    
+    local ThemeRef = nil -- setado por init.lua via Create.SetTheme
+    
+    function Create.SetThemeTable(themeTable)
+        ThemeRef = themeTable
     end
-    local loader = __modules[path]
-    if not loader then
-        error("Black UI: modulo nao encontrado: " .. tostring(path), 2)
+    
+    function Create.GetTheme()
+        return ThemeRef
     end
-    local result = loader()
-    __cache[path] = result
-    return result
-end
-__require = __require_impl
+    
+    -- Marca ums prop como "ligada ao tema": ThemeKey deve ser uma string chave
+    -- existente na tabela de tema (ex: "Background", "Text", ...)
+    local ThemeKeyMarker = {}
+    function Create.Theme(themeKey)
+        return setmetatable({ key = themeKey }, ThemeKeyMarker)
+    end
+    
+    local function isThemeMarker(v)
+        return typeof(v) == "table" and getmetatable(v) == ThemeKeyMarker
+    end
+    
+    function Create.New(className, props)
+        local inst = Instance.new(className)
+        local themeProps = nil
+    
+        if props then
+            for key, value in props do
+                if key == "Children" then
+                    continue
+                elseif key == "Parent" then
+                    continue -- setado por ultimo
+                elseif isThemeMarker(value) then
+                    themeProps = themeProps or {}
+                    themeProps[key] = value.key
+                    inst[key] = ThemeRef and ThemeRef[value.key] or value.key
+                else
+                    inst[key] = value
+                end
+            end
+    
+            if props.Children then
+                for _, child in props.Children do
+                    child.Parent = inst
+                end
+            end
+    
+            if props.Parent then
+                inst.Parent = props.Parent
+            end
+        end
+    
+        if themeProps then
+            Create.Registry[inst] = themeProps
+        end
+    
+        return inst
+    end
+    
+    -- Reaplica todas as props ligadas ao tema atual (chamar quando o tema mudar)
+    function Create.RefreshTheme()
+        if not ThemeRef then
+            return
+        end
+        for inst, themeProps in Create.Registry do
+            if not inst.Parent and inst.Parent ~= game then
+                -- ainda pode ser valido (root), nao remover por seguranca aqui
+            end
+            for prop, key in themeProps do
+                local ok = pcall(function()
+                    inst[prop] = ThemeRef[key]
+                end)
+                if not ok then
+                    Create.Registry[inst] = nil
+                    break
+                end
+            end
+        end
+    end
+    
+    function Create.Untrack(inst)
+        Create.Registry[inst] = nil
+    end
+    
+    return Create
+    
+end)()
 
-__modules = {
-    ["Components/MobileToggle"] = function()
+-- module: Utilities/Draggable
+local __mod_Utilities_Draggable = (function()
+    --[[
+        Black UI Library
+        Utilities/Draggable.lua
+    
+        Logica de arrastar (mouse + touch) com clamp dentro do viewport,
+        para que a janela nunca saia completamente da tela.
+    ]]
+    
+    local UserInputService = game:GetService("UserInputService")
+    
+    local Draggable = {}
+    
+    local function isDragInput(input)
+        return input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch
+    end
+    
+    -- target: GuiObject que sera movido (Position)
+    -- handle: GuiObject que recebe o input (pode ser o mesmo que target)
+    -- options: { ClampToScreen: boolean }
+    function Draggable.Enable(target, handle, options)
+        options = options or {}
+        local clamp = options.ClampToScreen ~= false
+    
+        local dragging = false
+        local dragStart = nil
+        local startPos = nil
+        local inputChangedConn = nil
+    
+        local function update(input)
+            local delta = input.Position - dragStart
+            local newX = startPos.X.Offset + delta.X
+            local newY = startPos.Y.Offset + delta.Y
+    
+            if clamp then
+                local camera = workspace.CurrentCamera
+                local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
+                local absSize = target.AbsoluteSize
+    
+                local minX, maxX = 0, viewport.X - absSize.X
+                local minY, maxY = 0, viewport.Y - absSize.Y
+    
+                -- calcula offset absoluto considerando a escala atual
+                local scaleX, scaleY = startPos.X.Scale, startPos.Y.Scale
+                local absStartX = scaleX * viewport.X
+                local absStartY = scaleY * viewport.Y
+    
+                newX = math.clamp(newX, minX - absStartX, maxX - absStartX)
+                newY = math.clamp(newY, minY - absStartY, maxY - absStartY)
+            end
+    
+            target.Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
+        end
+    
+        handle.InputBegan:Connect(function(input)
+            if not isDragInput(input) then
+                return
+            end
+            dragging = true
+            dragStart = input.Position
+            startPos = target.Position
+    
+            local changedConn
+            changedConn = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    if changedConn then
+                        changedConn:Disconnect()
+                    end
+                end
+            end)
+        end)
+    
+        inputChangedConn = UserInputService.InputChanged:Connect(function(input)
+            if not dragging then
+                return
+            end
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                update(input)
+            end
+        end)
+    
+        return {
+            Disconnect = function()
+                if inputChangedConn then
+                    inputChangedConn:Disconnect()
+                end
+            end,
+        }
+    end
+    
+    return Draggable
+    
+end)()
+
+-- module: Utilities/Tween
+local __mod_Utilities_Tween = (function()
+    --[[
+        Black UI Library
+        Utilities/Tween.lua
+    
+        Wrapper fino sobre TweenService + helpers de micro-interacao
+        (hover, press) usados por praticamente todos os elementos.
+    ]]
+    
+    local TweenService = game:GetService("TweenService")
+    
+    local Tween = {}
+    
+    function Tween.Play(instance, tweenInfo, props)
+        local tw = TweenService:Create(instance, tweenInfo, props)
+        tw:Play()
+        return tw
+    end
+    
+    -- Aplica hover (BackgroundColor3 muda) + press (scale sutil) num GuiButton/Frame
+    -- theme: tabela de tema atual (para pegar TweenFast)
+    function Tween.ApplyHoverPress(guiObject, colors, theme)
+        -- colors = { Normal = Color3, Hover = Color3, Press = Color3? }
+        local tweenInfo = theme and theme.TweenFast or TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    
+        guiObject.MouseEnter:Connect(function()
+            Tween.Play(guiObject, tweenInfo, { BackgroundColor3 = colors.Hover })
+        end)
+    
+        guiObject.MouseLeave:Connect(function()
+            Tween.Play(guiObject, tweenInfo, { BackgroundColor3 = colors.Normal })
+        end)
+    
+        if guiObject:IsA("GuiButton") then
+            guiObject.MouseButton1Down:Connect(function()
+                Tween.Play(guiObject, tweenInfo, { BackgroundColor3 = colors.Press or colors.Hover })
+            end)
+            guiObject.MouseButton1Up:Connect(function()
+                Tween.Play(guiObject, tweenInfo, { BackgroundColor3 = colors.Hover })
+            end)
+        end
+    end
+    
+    -- Pequeno "squish" de escala ao clicar (via UIScale filho)
+    function Tween.PressScale(guiObject, uiScale, theme)
+        local fast = theme and theme.TweenFast or TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        guiObject.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                Tween.Play(uiScale, fast, { Scale = 0.97 })
+            end
+        end)
+        guiObject.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                Tween.Play(uiScale, fast, { Scale = 1 })
+            end
+        end)
+    end
+    
+    return Tween
+    
+end)()
+
+-- module: Utilities/Platform
+local __mod_Utilities_Platform = (function()
+    --[[
+        Black UI Library
+        Utilities/Platform.lua
+    
+        Deteccao de plataforma (PC / Mobile) e helpers de adaptacao de tamanho
+        para telas de toque.
+    ]]
+    
+    local UserInputService = game:GetService("UserInputService")
+    local RunService = game:GetService("RunService")
+    
+    local Platform = {}
+    
+    local function DetectMobile()
+        if RunService:IsStudio() then
+            return UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+        end
+    
+        local ok, platform = pcall(function()
+            return UserInputService:GetPlatform()
+        end)
+    
+        if ok then
+            return platform == Enum.Platform.Android or platform == Enum.Platform.IOS
+        end
+    
+        return UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+    end
+    
+    Platform.IsMobile = DetectMobile()
+    Platform.IsTouch = UserInputService.TouchEnabled
+    
+    -- Tamanhos base adaptados por plataforma (hit area maior no mobile)
+    function Platform.Scale(pcValue, mobileValue)
+        if Platform.IsMobile then
+            return mobileValue
+        end
+        return pcValue
+    end
+    
+    -- Padding/altura minima recomendada para elementos interativos
+    Platform.MinTouchTarget = Platform.IsMobile and 40 or 30
+    
+    -- Atualiza dinamicamente se o input method mudar em runtime (ex: emulador)
+    UserInputService.LastInputTypeChanged:Connect(function(inputType)
+        if inputType == Enum.UserInputType.Touch then
+            Platform.IsTouch = true
+        elseif inputType == Enum.UserInputType.MouseMovement or inputType == Enum.UserInputType.MouseButton1 then
+            Platform.IsTouch = false
+        end
+    end)
+    
+    return Platform
+    
+end)()
+
+-- module: Components/MobileToggle
+local __mod_Components_MobileToggle = (function()
     --[[
         Black UI Library
         Components/MobileToggle.lua
@@ -33,10 +344,10 @@ __modules = {
         depender de teclado (o keybind RightControl nao existe no celular).
     ]]
     
-    local Create = __require("Utilities/Create")
-    local Draggable = __require("Utilities/Draggable")
-    local Tween = __require("Utilities/Tween")
-    local Platform = __require("Utilities/Platform")
+    local Create = __mod_Utilities_Create
+    local Draggable = __mod_Utilities_Draggable
+    local Tween = __mod_Utilities_Tween
+    local Platform = __mod_Utilities_Platform
     local Theme_ = Create.Theme
     
     local MobileToggle = {}
@@ -114,8 +425,10 @@ __modules = {
     
     return MobileToggle
     
-    end,
-    ["Components/Notification"] = function()
+end)()
+
+-- module: Components/Notification
+local __mod_Components_Notification = (function()
     --[[
         Black UI Library
         Components/Notification.lua
@@ -125,8 +438,8 @@ __modules = {
         success, warning, error - cada um muda a cor da barra lateral.
     ]]
     
-    local Create = __require("Utilities/Create")
-    local Tween = __require("Utilities/Tween")
+    local Create = __mod_Utilities_Create
+    local Tween = __mod_Utilities_Tween
     local Theme_ = Create.Theme
     
     local Notification = {}
@@ -305,8 +618,114 @@ __modules = {
     
     return Notification
     
-    end,
-    ["Components/ProfileCard"] = function()
+end)()
+
+-- module: Tab
+local __mod_Tab = (function()
+    --[[
+        Black UI Library
+        Tab.lua
+    
+        Cada tab tem um botao na sidebar e uma "Page" (ScrollingFrame) no
+        content. Elementos (Button, Toggle, Slider, ...) sao criados dentro
+        da page via metodos :CreateX().
+    ]]
+    
+    local Create = __mod_Utilities_Create
+    local Tween = __mod_Utilities_Tween
+    local Theme_ = Create.Theme
+    
+    local Tab = {}
+    Tab.__index = Tab
+    
+    function Tab.new(window, opts)
+        opts = opts or {}
+        local theme = Create.GetTheme()
+    
+        local self = setmetatable({}, Tab)
+        self.Window = window
+        self.Name = opts.Name or "Tab"
+        self.Elements = {}
+    
+        -- Botao na sidebar
+        self.Button = Create.New("TextButton", {
+            Name = self.Name .. "Button",
+            BackgroundColor3 = Theme_("Surface"),
+            AutoButtonColor = false,
+            Size = UDim2.new(1, 0, 0, 34),
+            Text = "",
+            Parent = window.TabList,
+            Children = {
+                Create.New("UICorner", { CornerRadius = theme.CornerRadiusSmall }),
+            },
+        })
+    
+        self.ButtonLabel = Create.New("TextLabel", {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(10, 0),
+            Size = UDim2.new(1, -20, 1, 0),
+            Font = theme.Font,
+            Text = self.Name,
+            TextColor3 = theme.TextSecondary,
+            TextSize = 13,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = self.Button,
+        })
+    
+        Tween.ApplyHoverPress(self.Button, {
+            Normal = theme.Surface,
+            Hover = theme.SurfaceElevated,
+        }, theme)
+    
+        self.Button.MouseButton1Click:Connect(function()
+            window:SelectTab(self)
+        end)
+    
+        -- Page (conteudo)
+        self.Page = Create.New("ScrollingFrame", {
+            Name = self.Name .. "Page",
+            BackgroundTransparency = 1,
+            Size = UDim2.fromScale(1, 1),
+            CanvasSize = UDim2.fromOffset(0, 0),
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            ScrollBarThickness = 3,
+            ScrollBarImageColor3 = theme.Border,
+            ScrollingDirection = Enum.ScrollingDirection.Y,
+            Visible = false,
+            Parent = window.Content,
+            Children = {
+                Create.New("UIListLayout", {
+                    Padding = UDim.new(0, 8),
+                }),
+                Create.New("UIPadding", {
+                    PaddingLeft = UDim.new(0, 16),
+                    PaddingRight = UDim.new(0, 16),
+                    PaddingTop = UDim.new(0, 16),
+                    PaddingBottom = UDim.new(0, 16),
+                }),
+            },
+        })
+    
+        return self
+    end
+    
+    -- Os metodos CreateButton/CreateToggle/etc sao anexados em Elements/*.lua
+    -- via Tab.RegisterElement, para manter cada componente isolado no seu
+    -- proprio arquivo (evita um Tab.lua gigante).
+    function Tab.RegisterElement(name, factoryFn)
+        Tab[name] = function(self, opts)
+            local element = factoryFn(self, opts)
+            table.insert(self.Elements, element)
+            return element
+        end
+    end
+    
+    return Tab
+    
+end)()
+
+-- module: Components/ProfileCard
+local __mod_Components_ProfileCard = (function()
     --[[
         Black UI Library
         Components/ProfileCard.lua
@@ -321,9 +740,9 @@ __modules = {
     
     local Players = game:GetService("Players")
     
-    local Create = __require("Utilities/Create")
-    local Tween = __require("Utilities/Tween")
-    local Tab = __require("Tab")
+    local Create = __mod_Utilities_Create
+    local Tween = __mod_Utilities_Tween
+    local Tab = __mod_Tab
     local Theme_ = Create.Theme
     
     local DEVELOPER_CREDIT = "Discord: @falsocrime"
@@ -468,8 +887,136 @@ __modules = {
         return { Instance = Label }
     end)
     
-    end,
-    ["Elements/Button"] = function()
+end)()
+
+-- module: Utilities/HelpButton
+local __mod_Utilities_HelpButton = (function()
+    --[[
+        Black UI Library
+        Utilities/HelpButton.lua
+    
+        Botao de ajuda (?) opcional, anexavel no canto de qualquer elemento
+        (Button, Toggle, Input, Slider, Dropdown, KeyBind, ColorPicker...).
+        Ao clicar, mostra um tooltip flutuante logo abaixo do elemento com o
+        texto de ajuda — inspirado no botao "Help" da IceHub, porem sem
+        depender de um BlurFrame global fixo.
+    ]]
+    
+    local Create = __mod_Utilities_Create
+    local Tween = __mod_Utilities_Tween
+    local Theme_ = Create.Theme
+    
+    local HelpButton = {}
+    
+    -- Adiciona um botao "?" ancorado no canto superior direito de `parent`.
+    -- `position` (opcional) permite customizar o UDim2 de ancoragem, util para
+    -- elementos altos (Slider, Dropdown) onde o botao nao deve ficar centralizado
+    -- verticalmente. Retorna a instancia do botao (ou nil se `helpText` nao foi fornecido).
+    function HelpButton.Attach(parent, helpText, position)
+        if not helpText or helpText == "" then
+            return nil
+        end
+    
+        local theme = Create.GetTheme()
+    
+        local Button = Create.New("TextButton", {
+            Name = "Help",
+            BackgroundColor3 = Theme_("SurfaceElevated"),
+            AutoButtonColor = false,
+            AnchorPoint = Vector2.new(1, 0.5),
+            Position = position or UDim2.new(1, -6, 0.5, 0),
+            Size = UDim2.fromOffset(18, 18),
+            Font = theme.FontBold,
+            Text = "?",
+            TextColor3 = theme.TextSecondary,
+            TextSize = 11,
+            ZIndex = 6,
+            Parent = parent,
+            Children = {
+                Create.New("UICorner", { CornerRadius = theme.CornerRadiusPill }),
+            },
+        })
+    
+        Tween.ApplyHoverPress(Button, {
+            Normal = theme.SurfaceElevated,
+            Hover = theme.SurfaceHover,
+        }, theme)
+    
+        local Tooltip = Create.New("TextLabel", {
+            Name = "HelpTooltip",
+            BackgroundColor3 = Theme_("SurfaceElevated"),
+            AnchorPoint = Vector2.new(1, 0),
+            Position = UDim2.new(1, 0, 1, 6),
+            Size = UDim2.fromOffset(220, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Font = theme.Font,
+            Text = helpText,
+            TextColor3 = theme.Text,
+            TextSize = 12,
+            TextWrapped = true,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top,
+            Visible = false,
+            ZIndex = 20,
+            Parent = Button,
+            Children = {
+                Create.New("UICorner", { CornerRadius = theme.CornerRadiusSmall }),
+                Create.New("UIStroke", { Color = Theme_("BorderStrong"), Thickness = 1, Transparency = 0.2 }),
+                Create.New("UIPadding", {
+                    PaddingLeft = UDim.new(0, 10),
+                    PaddingRight = UDim.new(0, 10),
+                    PaddingTop = UDim.new(0, 8),
+                    PaddingBottom = UDim.new(0, 8),
+                }),
+            },
+        })
+    
+        local visible = false
+        local hideTask = nil
+    
+        local function show()
+            if hideTask then
+                task.cancel(hideTask)
+                hideTask = nil
+            end
+            visible = true
+            Tooltip.Visible = true
+        end
+    
+        local function hide()
+            visible = false
+            hideTask = task.delay(0.1, function()
+                if not visible then
+                    Tooltip.Visible = false
+                end
+            end)
+        end
+    
+        Button.MouseButton1Click:Connect(function()
+            if Tooltip.Visible then
+                hide()
+            else
+                show()
+            end
+        end)
+    
+        Button.MouseLeave:Connect(function()
+            task.delay(1.5, function()
+                if visible then
+                    hide()
+                end
+            end)
+        end)
+    
+        return Button
+    end
+    
+    return HelpButton
+    
+end)()
+
+-- module: Elements/Button
+local __mod_Elements_Button = (function()
     --[[
         Black UI Library
         Elements/Button.lua
@@ -477,10 +1024,10 @@ __modules = {
         Botao simples com nome + descricao opcional, feedback de hover/press.
     ]]
     
-    local Create = __require("Utilities/Create")
-    local Tween = __require("Utilities/Tween")
-    local HelpButton = __require("Utilities/HelpButton")
-    local Tab = __require("Tab")
+    local Create = __mod_Utilities_Create
+    local Tween = __mod_Utilities_Tween
+    local HelpButton = __mod_Utilities_HelpButton
+    local Tab = __mod_Tab
     local Theme_ = Create.Theme
     
     Tab.RegisterElement("CreateButton", function(tab, opts)
@@ -567,8 +1114,65 @@ __modules = {
         return api
     end)
     
-    end,
-    ["Elements/ColorPicker"] = function()
+end)()
+
+-- module: Utilities/Signal
+local __mod_Utilities_Signal = (function()
+    --[[
+        Black UI Library
+        Utilities/Signal.lua
+    
+        Mini event system (pub/sub) usado internamente pelos componentes
+        para expor eventos como :OnChanged(), :OnClick(), etc.
+    ]]
+    
+    local Signal = {}
+    Signal.__index = Signal
+    
+    function Signal.new()
+        return setmetatable({
+            _handlers = {},
+        }, Signal)
+    end
+    
+    function Signal:Connect(fn)
+        local handler = { fn = fn }
+        table.insert(self._handlers, handler)
+    
+        local connection = {}
+        function connection:Disconnect()
+            local idx = table.find(self._handlers, handler)
+            if idx then
+                table.remove(self._handlers, idx)
+            end
+        end
+        setmetatable(connection, { __index = function(_, k)
+            if k == "Disconnect" then
+                return connection.Disconnect
+            end
+        end })
+    
+        return connection
+    end
+    
+    function Signal:Fire(...)
+        -- copia pra evitar problema se um handler se desconectar durante o Fire
+        local handlers = table.clone(self._handlers)
+        for _, handler in handlers do
+            task.spawn(handler.fn, ...)
+        end
+    end
+    
+    function Signal:DisconnectAll()
+        table.clear(self._handlers)
+    end
+    
+    return Signal
+    
+end)()
+
+-- module: Elements/ColorPicker
+local __mod_Elements_ColorPicker = (function()
     --[[
         Black UI Library
         Elements/ColorPicker.lua
@@ -582,11 +1186,11 @@ __modules = {
     
     local UserInputService = game:GetService("UserInputService")
     
-    local Create = __require("Utilities/Create")
-    local Tween = __require("Utilities/Tween")
-    local Signal = __require("Utilities/Signal")
-    local HelpButton = __require("Utilities/HelpButton")
-    local Tab = __require("Tab")
+    local Create = __mod_Utilities_Create
+    local Tween = __mod_Utilities_Tween
+    local Signal = __mod_Utilities_Signal
+    local HelpButton = __mod_Utilities_HelpButton
+    local Tab = __mod_Tab
     local Theme_ = Create.Theme
     
     Tab.RegisterElement("CreateColorPicker", function(tab, opts)
@@ -862,8 +1466,10 @@ __modules = {
         return api
     end)
     
-    end,
-    ["Elements/Dropdown"] = function()
+end)()
+
+-- module: Elements/Dropdown
+local __mod_Elements_Dropdown = (function()
     --[[
         Black UI Library
         Elements/Dropdown.lua
@@ -874,11 +1480,11 @@ __modules = {
     
     local UserInputService = game:GetService("UserInputService")
     
-    local Create = __require("Utilities/Create")
-    local Tween = __require("Utilities/Tween")
-    local Signal = __require("Utilities/Signal")
-    local HelpButton = __require("Utilities/HelpButton")
-    local Tab = __require("Tab")
+    local Create = __mod_Utilities_Create
+    local Tween = __mod_Utilities_Tween
+    local Signal = __mod_Utilities_Signal
+    local HelpButton = __mod_Utilities_HelpButton
+    local Tab = __mod_Tab
     local Theme_ = Create.Theme
     
     -- Rastreia o dropdown aberto atualmente (so um pode estar aberto por vez)
@@ -1186,8 +1792,10 @@ __modules = {
         return api
     end)
     
-    end,
-    ["Elements/Input"] = function()
+end)()
+
+-- module: Elements/Input
+local __mod_Elements_Input = (function()
     --[[
         Black UI Library
         Elements/Input.lua
@@ -1196,10 +1804,10 @@ __modules = {
         suporte a Numeric (filtra apenas digitos).
     ]]
     
-    local Create = __require("Utilities/Create")
-    local Signal = __require("Utilities/Signal")
-    local HelpButton = __require("Utilities/HelpButton")
-    local Tab = __require("Tab")
+    local Create = __mod_Utilities_Create
+    local Signal = __mod_Utilities_Signal
+    local HelpButton = __mod_Utilities_HelpButton
+    local Tab = __mod_Tab
     local Theme_ = Create.Theme
     
     Tab.RegisterElement("CreateInput", function(tab, opts)
@@ -1325,8 +1933,10 @@ __modules = {
         return api
     end)
     
-    end,
-    ["Elements/KeyBind"] = function()
+end)()
+
+-- module: Elements/KeyBind
+local __mod_Elements_KeyBind = (function()
     --[[
         Black UI Library
         Elements/KeyBind.lua
@@ -1338,11 +1948,11 @@ __modules = {
     
     local UserInputService = game:GetService("UserInputService")
     
-    local Create = __require("Utilities/Create")
-    local Tween = __require("Utilities/Tween")
-    local Signal = __require("Utilities/Signal")
-    local HelpButton = __require("Utilities/HelpButton")
-    local Tab = __require("Tab")
+    local Create = __mod_Utilities_Create
+    local Tween = __mod_Utilities_Tween
+    local Signal = __mod_Utilities_Signal
+    local HelpButton = __mod_Utilities_HelpButton
+    local Tab = __mod_Tab
     local Theme_ = Create.Theme
     
     local MouseButtonNames = {
@@ -1484,8 +2094,10 @@ __modules = {
         return api
     end)
     
-    end,
-    ["Elements/Label"] = function()
+end)()
+
+-- module: Elements/Label
+local __mod_Elements_Label = (function()
     --[[
         Black UI Library
         Elements/Label.lua
@@ -1493,8 +2105,8 @@ __modules = {
         Label simples (texto informativo) e Paragraph (bloco maior com wrap).
     ]]
     
-    local Create = __require("Utilities/Create")
-    local Tab = __require("Tab")
+    local Create = __mod_Utilities_Create
+    local Tab = __mod_Tab
     local Theme_ = Create.Theme
     
     Tab.RegisterElement("CreateLabel", function(tab, opts)
@@ -1631,8 +2243,10 @@ __modules = {
         return { Instance = Holder }
     end)
     
-    end,
-    ["Elements/Slider"] = function()
+end)()
+
+-- module: Elements/Slider
+local __mod_Elements_Slider = (function()
     --[[
         Black UI Library
         Elements/Slider.lua
@@ -1643,11 +2257,11 @@ __modules = {
     
     local UserInputService = game:GetService("UserInputService")
     
-    local Create = __require("Utilities/Create")
-    local Tween = __require("Utilities/Tween")
-    local Signal = __require("Utilities/Signal")
-    local HelpButton = __require("Utilities/HelpButton")
-    local Tab = __require("Tab")
+    local Create = __mod_Utilities_Create
+    local Tween = __mod_Utilities_Tween
+    local Signal = __mod_Utilities_Signal
+    local HelpButton = __mod_Utilities_HelpButton
+    local Tab = __mod_Tab
     local Theme_ = Create.Theme
     
     Tab.RegisterElement("CreateSlider", function(tab, opts)
@@ -1870,8 +2484,10 @@ __modules = {
         return api
     end)
     
-    end,
-    ["Elements/Toggle"] = function()
+end)()
+
+-- module: Elements/Toggle
+local __mod_Elements_Toggle = (function()
     --[[
         Black UI Library
         Elements/Toggle.lua
@@ -1881,11 +2497,11 @@ __modules = {
         aparece/desaparece via transparencia ao ativar/desativar.
     ]]
     
-    local Create = __require("Utilities/Create")
-    local Tween = __require("Utilities/Tween")
-    local Signal = __require("Utilities/Signal")
-    local HelpButton = __require("Utilities/HelpButton")
-    local Tab = __require("Tab")
+    local Create = __mod_Utilities_Create
+    local Tween = __mod_Utilities_Tween
+    local Signal = __mod_Utilities_Signal
+    local HelpButton = __mod_Utilities_HelpButton
+    local Tab = __mod_Tab
     local Theme_ = Create.Theme
     
     Tab.RegisterElement("CreateToggle", function(tab, opts)
@@ -2008,682 +2624,10 @@ __modules = {
         return api
     end)
     
-    end,
-    ["init"] = function()
-    --[[
-        Black UI Library
-        init.lua — Entry point
-    
-        Uso tipico (apos build, via loadstring):
-            local Black = loadstring(game:HttpGet("URL"))()
-            local Window = Black:CreateWindow({ Name = "My Hub" })
-            local Tab = Window:CreateTab({ Name = "Main" })
-            Tab:CreateButton({ Name = "Click me", Callback = function() end })
-    
-        Este arquivo:
-        - Cria o ScreenGui raiz (protegido via protectgui/gethui quando disponivel)
-        - Inicializa o sistema de tema (Utilities/Create + Theme)
-        - Expoe Black:CreateWindow(), Black:Notify(), Black:SetTheme()
-        - Inicializa Notification e MobileToggle
-    ]]
-    
-    local cloneref = (cloneref or clonereference or function(instance)
-        return instance
-    end)
-    
-    local CoreGui = cloneref(game:GetService("CoreGui"))
-    local Players = cloneref(game:GetService("Players"))
-    
-    local protectgui = protectgui or (syn and syn.protect_gui) or function() end
-    local gethui = gethui or function()
-        return CoreGui
-    end
-    
-    local Create = __require("Utilities/Create")
-    local Theme = __require("Utilities/Theme")
-    local Window = __require("Window")
-    local Notification = __require("Components/Notification")
-    local MobileToggle = __require("Components/MobileToggle")
-    __require("Components/ProfileCard")
-    
-    -- Carrega todos os elementos (eles se auto-registram em Tab via Tab.RegisterElement)
-    __require("Elements/Button")
-    __require("Elements/Toggle")
-    __require("Elements/Slider")
-    __require("Elements/Input")
-    __require("Elements/Dropdown")
-    __require("Elements/Label")
-    __require("Elements/KeyBind")
-    __require("Elements/ColorPicker")
-    
-    local Black = {
-        _VERSION = "1.0.0", -- versao interna da lib (nao exibida na UI)
-        Version = nil, -- versao exibida no titulo da janela; fica vazio se nao definida via CreateWindow({ Version = ... })
-        Windows = {},
-    }
-    
-    -- Tema atual (mutavel via Black:SetTheme)
-    local CurrentTheme = table.clone(Theme.Default)
-    Create.SetThemeTable(CurrentTheme)
-    Black.Theme = CurrentTheme
-    
-    -- ScreenGui raiz
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "BlackUI"
-    ScreenGui.DisplayOrder = 999
-    ScreenGui.ResetOnSpawn = false
-    ScreenGui.IgnoreGuiInset = true
-    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    
-    do
-        local localPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
-        local ok = pcall(function()
-            protectgui(ScreenGui)
-            ScreenGui.Parent = gethui()
-        end)
-        if not ok or not ScreenGui.Parent then
-            ScreenGui.Parent = localPlayer:WaitForChild("PlayerGui")
-        end
-    end
-    
-    Black.ScreenGui = ScreenGui
-    
-    --[[
-        Black:CreateWindow(opts)
-        opts:
-            Name (string)         - titulo da janela
-            SubTitle (string?)    - subtitulo pequeno abaixo do titulo
-            Version (string?)     - versao exibida ao lado do titulo (default: Black.Version)
-            Size (UDim2?)         - tamanho inicial
-            ToggleKeybind (Enum.KeyCode?) - tecla que abre/fecha (default RightControl)
-    ]]
-    function Black:CreateWindow(opts)
-        opts = opts or {}
-        if opts.Version then
-            self.Version = opts.Version
-        end
-        local window = Window.new(self, opts)
-        table.insert(self.Windows, window)
-    
-        -- Botao flutuante mobile (nulo em PC)
-        MobileToggle.Create(self, window)
-    
-        return window
-    end
-    
-    -- Sistema de notificacao (Black:Notify(...)) e injetado por Notification.Init
-    Notification.Init(Black)
-    
-    --[[
-        Black:SetTheme(themeTable)
-        Mescla themeTable sobre o tema atual e reaplica em todos os elementos
-        ja criados (via Create.RefreshTheme).
-    ]]
-    function Black:SetTheme(themeTable)
-        for key, value in themeTable do
-            CurrentTheme[key] = value
-        end
-        Create.RefreshTheme()
-    end
-    
-    function Black:GetTheme()
-        return CurrentTheme
-    end
-    
-    --[[
-        Black:Destroy()
-        Remove toda a UI da tela. Chamar ao descarregar o script.
-    ]]
-    function Black:Destroy()
-        for _, window in self.Windows do
-            window:Destroy()
-        end
-        self.Windows = {}
-        if ScreenGui then
-            ScreenGui:Destroy()
-        end
-    end
-    
-    return Black
-    
-    end,
-    ["Tab"] = function()
-    --[[
-        Black UI Library
-        Tab.lua
-    
-        Cada tab tem um botao na sidebar e uma "Page" (ScrollingFrame) no
-        content. Elementos (Button, Toggle, Slider, ...) sao criados dentro
-        da page via metodos :CreateX().
-    ]]
-    
-    local Create = __require("Utilities/Create")
-    local Tween = __require("Utilities/Tween")
-    local Theme_ = Create.Theme
-    
-    local Tab = {}
-    Tab.__index = Tab
-    
-    function Tab.new(window, opts)
-        opts = opts or {}
-        local theme = Create.GetTheme()
-    
-        local self = setmetatable({}, Tab)
-        self.Window = window
-        self.Name = opts.Name or "Tab"
-        self.Elements = {}
-    
-        -- Botao na sidebar
-        self.Button = Create.New("TextButton", {
-            Name = self.Name .. "Button",
-            BackgroundColor3 = Theme_("Surface"),
-            AutoButtonColor = false,
-            Size = UDim2.new(1, 0, 0, 34),
-            Text = "",
-            Parent = window.TabList,
-            Children = {
-                Create.New("UICorner", { CornerRadius = theme.CornerRadiusSmall }),
-            },
-        })
-    
-        self.ButtonLabel = Create.New("TextLabel", {
-            BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(10, 0),
-            Size = UDim2.new(1, -20, 1, 0),
-            Font = theme.Font,
-            Text = self.Name,
-            TextColor3 = theme.TextSecondary,
-            TextSize = 13,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Parent = self.Button,
-        })
-    
-        Tween.ApplyHoverPress(self.Button, {
-            Normal = theme.Surface,
-            Hover = theme.SurfaceElevated,
-        }, theme)
-    
-        self.Button.MouseButton1Click:Connect(function()
-            window:SelectTab(self)
-        end)
-    
-        -- Page (conteudo)
-        self.Page = Create.New("ScrollingFrame", {
-            Name = self.Name .. "Page",
-            BackgroundTransparency = 1,
-            Size = UDim2.fromScale(1, 1),
-            CanvasSize = UDim2.fromOffset(0, 0),
-            AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            ScrollBarThickness = 3,
-            ScrollBarImageColor3 = theme.Border,
-            ScrollingDirection = Enum.ScrollingDirection.Y,
-            Visible = false,
-            Parent = window.Content,
-            Children = {
-                Create.New("UIListLayout", {
-                    Padding = UDim.new(0, 8),
-                }),
-                Create.New("UIPadding", {
-                    PaddingLeft = UDim.new(0, 16),
-                    PaddingRight = UDim.new(0, 16),
-                    PaddingTop = UDim.new(0, 16),
-                    PaddingBottom = UDim.new(0, 16),
-                }),
-            },
-        })
-    
-        return self
-    end
-    
-    -- Os metodos CreateButton/CreateToggle/etc sao anexados em Elements/*.lua
-    -- via Tab.RegisterElement, para manter cada componente isolado no seu
-    -- proprio arquivo (evita um Tab.lua gigante).
-    function Tab.RegisterElement(name, factoryFn)
-        Tab[name] = function(self, opts)
-            local element = factoryFn(self, opts)
-            table.insert(self.Elements, element)
-            return element
-        end
-    end
-    
-    return Tab
-    
-    end,
-    ["Utilities/Create"] = function()
-    --[[
-        Black UI Library
-        Utilities/Create.lua
-    
-        Wrapper para Instance.new que:
-        - Aplica propriedades de uma tabela
-        - Registra propriedades ligadas ao tema (para retema em runtime)
-        - Suporta filhos aninhados via campo `Children`
-    
-        Inspirado no padrao "New()" do Obsidian, porem mais leve: em vez de
-        reescrever TODAS as instancias sempre que o tema muda, guardamos uma
-        lista de (instance, property, themeKey) e so atualizamos essas.
-    ]]
-    
-    local Create = {}
-    
-    -- Registry global: { [Instance] = { [Property] = ThemeKey } }
-    Create.Registry = {}
-    
-    local ThemeRef = nil -- setado por init.lua via Create.SetTheme
-    
-    function Create.SetThemeTable(themeTable)
-        ThemeRef = themeTable
-    end
-    
-    function Create.GetTheme()
-        return ThemeRef
-    end
-    
-    -- Marca ums prop como "ligada ao tema": ThemeKey deve ser uma string chave
-    -- existente na tabela de tema (ex: "Background", "Text", ...)
-    local ThemeKeyMarker = {}
-    function Create.Theme(themeKey)
-        return setmetatable({ key = themeKey }, ThemeKeyMarker)
-    end
-    
-    local function isThemeMarker(v)
-        return typeof(v) == "table" and getmetatable(v) == ThemeKeyMarker
-    end
-    
-    function Create.New(className, props)
-        local inst = Instance.new(className)
-        local themeProps = nil
-    
-        if props then
-            for key, value in props do
-                if key == "Children" then
-                    continue
-                elseif key == "Parent" then
-                    continue -- setado por ultimo
-                elseif isThemeMarker(value) then
-                    themeProps = themeProps or {}
-                    themeProps[key] = value.key
-                    inst[key] = ThemeRef and ThemeRef[value.key] or value.key
-                else
-                    inst[key] = value
-                end
-            end
-    
-            if props.Children then
-                for _, child in props.Children do
-                    child.Parent = inst
-                end
-            end
-    
-            if props.Parent then
-                inst.Parent = props.Parent
-            end
-        end
-    
-        if themeProps then
-            Create.Registry[inst] = themeProps
-        end
-    
-        return inst
-    end
-    
-    -- Reaplica todas as props ligadas ao tema atual (chamar quando o tema mudar)
-    function Create.RefreshTheme()
-        if not ThemeRef then
-            return
-        end
-        for inst, themeProps in Create.Registry do
-            if not inst.Parent and inst.Parent ~= game then
-                -- ainda pode ser valido (root), nao remover por seguranca aqui
-            end
-            for prop, key in themeProps do
-                local ok = pcall(function()
-                    inst[prop] = ThemeRef[key]
-                end)
-                if not ok then
-                    Create.Registry[inst] = nil
-                    break
-                end
-            end
-        end
-    end
-    
-    function Create.Untrack(inst)
-        Create.Registry[inst] = nil
-    end
-    
-    return Create
-    
-    end,
-    ["Utilities/Draggable"] = function()
-    --[[
-        Black UI Library
-        Utilities/Draggable.lua
-    
-        Logica de arrastar (mouse + touch) com clamp dentro do viewport,
-        para que a janela nunca saia completamente da tela.
-    ]]
-    
-    local UserInputService = game:GetService("UserInputService")
-    
-    local Draggable = {}
-    
-    local function isDragInput(input)
-        return input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch
-    end
-    
-    -- target: GuiObject que sera movido (Position)
-    -- handle: GuiObject que recebe o input (pode ser o mesmo que target)
-    -- options: { ClampToScreen: boolean }
-    function Draggable.Enable(target, handle, options)
-        options = options or {}
-        local clamp = options.ClampToScreen ~= false
-    
-        local dragging = false
-        local dragStart = nil
-        local startPos = nil
-        local inputChangedConn = nil
-    
-        local function update(input)
-            local delta = input.Position - dragStart
-            local newX = startPos.X.Offset + delta.X
-            local newY = startPos.Y.Offset + delta.Y
-    
-            if clamp then
-                local camera = workspace.CurrentCamera
-                local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
-                local absSize = target.AbsoluteSize
-    
-                local minX, maxX = 0, viewport.X - absSize.X
-                local minY, maxY = 0, viewport.Y - absSize.Y
-    
-                -- calcula offset absoluto considerando a escala atual
-                local scaleX, scaleY = startPos.X.Scale, startPos.Y.Scale
-                local absStartX = scaleX * viewport.X
-                local absStartY = scaleY * viewport.Y
-    
-                newX = math.clamp(newX, minX - absStartX, maxX - absStartX)
-                newY = math.clamp(newY, minY - absStartY, maxY - absStartY)
-            end
-    
-            target.Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
-        end
-    
-        handle.InputBegan:Connect(function(input)
-            if not isDragInput(input) then
-                return
-            end
-            dragging = true
-            dragStart = input.Position
-            startPos = target.Position
-    
-            local changedConn
-            changedConn = input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    if changedConn then
-                        changedConn:Disconnect()
-                    end
-                end
-            end)
-        end)
-    
-        inputChangedConn = UserInputService.InputChanged:Connect(function(input)
-            if not dragging then
-                return
-            end
-            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                update(input)
-            end
-        end)
-    
-        return {
-            Disconnect = function()
-                if inputChangedConn then
-                    inputChangedConn:Disconnect()
-                end
-            end,
-        }
-    end
-    
-    return Draggable
-    
-    end,
-    ["Utilities/HelpButton"] = function()
-    --[[
-        Black UI Library
-        Utilities/HelpButton.lua
-    
-        Botao de ajuda (?) opcional, anexavel no canto de qualquer elemento
-        (Button, Toggle, Input, Slider, Dropdown, KeyBind, ColorPicker...).
-        Ao clicar, mostra um tooltip flutuante logo abaixo do elemento com o
-        texto de ajuda — inspirado no botao "Help" da IceHub, porem sem
-        depender de um BlurFrame global fixo.
-    ]]
-    
-    local Create = __require("Create")
-    local Tween = __require("Tween")
-    local Theme_ = Create.Theme
-    
-    local HelpButton = {}
-    
-    -- Adiciona um botao "?" ancorado no canto superior direito de `parent`.
-    -- `position` (opcional) permite customizar o UDim2 de ancoragem, util para
-    -- elementos altos (Slider, Dropdown) onde o botao nao deve ficar centralizado
-    -- verticalmente. Retorna a instancia do botao (ou nil se `helpText` nao foi fornecido).
-    function HelpButton.Attach(parent, helpText, position)
-        if not helpText or helpText == "" then
-            return nil
-        end
-    
-        local theme = Create.GetTheme()
-    
-        local Button = Create.New("TextButton", {
-            Name = "Help",
-            BackgroundColor3 = Theme_("SurfaceElevated"),
-            AutoButtonColor = false,
-            AnchorPoint = Vector2.new(1, 0.5),
-            Position = position or UDim2.new(1, -6, 0.5, 0),
-            Size = UDim2.fromOffset(18, 18),
-            Font = theme.FontBold,
-            Text = "?",
-            TextColor3 = theme.TextSecondary,
-            TextSize = 11,
-            ZIndex = 6,
-            Parent = parent,
-            Children = {
-                Create.New("UICorner", { CornerRadius = theme.CornerRadiusPill }),
-            },
-        })
-    
-        Tween.ApplyHoverPress(Button, {
-            Normal = theme.SurfaceElevated,
-            Hover = theme.SurfaceHover,
-        }, theme)
-    
-        local Tooltip = Create.New("TextLabel", {
-            Name = "HelpTooltip",
-            BackgroundColor3 = Theme_("SurfaceElevated"),
-            AnchorPoint = Vector2.new(1, 0),
-            Position = UDim2.new(1, 0, 1, 6),
-            Size = UDim2.fromOffset(220, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Font = theme.Font,
-            Text = helpText,
-            TextColor3 = theme.Text,
-            TextSize = 12,
-            TextWrapped = true,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextYAlignment = Enum.TextYAlignment.Top,
-            Visible = false,
-            ZIndex = 20,
-            Parent = Button,
-            Children = {
-                Create.New("UICorner", { CornerRadius = theme.CornerRadiusSmall }),
-                Create.New("UIStroke", { Color = Theme_("BorderStrong"), Thickness = 1, Transparency = 0.2 }),
-                Create.New("UIPadding", {
-                    PaddingLeft = UDim.new(0, 10),
-                    PaddingRight = UDim.new(0, 10),
-                    PaddingTop = UDim.new(0, 8),
-                    PaddingBottom = UDim.new(0, 8),
-                }),
-            },
-        })
-    
-        local visible = false
-        local hideTask = nil
-    
-        local function show()
-            if hideTask then
-                task.cancel(hideTask)
-                hideTask = nil
-            end
-            visible = true
-            Tooltip.Visible = true
-        end
-    
-        local function hide()
-            visible = false
-            hideTask = task.delay(0.1, function()
-                if not visible then
-                    Tooltip.Visible = false
-                end
-            end)
-        end
-    
-        Button.MouseButton1Click:Connect(function()
-            if Tooltip.Visible then
-                hide()
-            else
-                show()
-            end
-        end)
-    
-        Button.MouseLeave:Connect(function()
-            task.delay(1.5, function()
-                if visible then
-                    hide()
-                end
-            end)
-        end)
-    
-        return Button
-    end
-    
-    return HelpButton
-    
-    end,
-    ["Utilities/Platform"] = function()
-    --[[
-        Black UI Library
-        Utilities/Platform.lua
-    
-        Deteccao de plataforma (PC / Mobile) e helpers de adaptacao de tamanho
-        para telas de toque.
-    ]]
-    
-    local UserInputService = game:GetService("UserInputService")
-    local RunService = game:GetService("RunService")
-    
-    local Platform = {}
-    
-    local function DetectMobile()
-        if RunService:IsStudio() then
-            return UserInputService.TouchEnabled and not UserInputService.MouseEnabled
-        end
-    
-        local ok, platform = pcall(function()
-            return UserInputService:GetPlatform()
-        end)
-    
-        if ok then
-            return platform == Enum.Platform.Android or platform == Enum.Platform.IOS
-        end
-    
-        return UserInputService.TouchEnabled and not UserInputService.MouseEnabled
-    end
-    
-    Platform.IsMobile = DetectMobile()
-    Platform.IsTouch = UserInputService.TouchEnabled
-    
-    -- Tamanhos base adaptados por plataforma (hit area maior no mobile)
-    function Platform.Scale(pcValue, mobileValue)
-        if Platform.IsMobile then
-            return mobileValue
-        end
-        return pcValue
-    end
-    
-    -- Padding/altura minima recomendada para elementos interativos
-    Platform.MinTouchTarget = Platform.IsMobile and 40 or 30
-    
-    -- Atualiza dinamicamente se o input method mudar em runtime (ex: emulador)
-    UserInputService.LastInputTypeChanged:Connect(function(inputType)
-        if inputType == Enum.UserInputType.Touch then
-            Platform.IsTouch = true
-        elseif inputType == Enum.UserInputType.MouseMovement or inputType == Enum.UserInputType.MouseButton1 then
-            Platform.IsTouch = false
-        end
-    end)
-    
-    return Platform
-    
-    end,
-    ["Utilities/Signal"] = function()
-    --[[
-        Black UI Library
-        Utilities/Signal.lua
-    
-        Mini event system (pub/sub) usado internamente pelos componentes
-        para expor eventos como :OnChanged(), :OnClick(), etc.
-    ]]
-    
-    local Signal = {}
-    Signal.__index = Signal
-    
-    function Signal.new()
-        return setmetatable({
-            _handlers = {},
-        }, Signal)
-    end
-    
-    function Signal:Connect(fn)
-        local handler = { fn = fn }
-        table.insert(self._handlers, handler)
-    
-        local connection = {}
-        function connection:Disconnect()
-            local idx = table.find(self._handlers, handler)
-            if idx then
-                table.remove(self._handlers, idx)
-            end
-        end
-        setmetatable(connection, { __index = function(_, k)
-            if k == "Disconnect" then
-                return connection.Disconnect
-            end
-        end })
-    
-        return connection
-    end
-    
-    function Signal:Fire(...)
-        -- copia pra evitar problema se um handler se desconectar durante o Fire
-        local handlers = table.clone(self._handlers)
-        for _, handler in handlers do
-            task.spawn(handler.fn, ...)
-        end
-    end
-    
-    function Signal:DisconnectAll()
-        table.clear(self._handlers)
-    end
-    
-    return Signal
-    
-    end,
-    ["Utilities/Theme"] = function()
+end)()
+
+-- module: Utilities/Theme
+local __mod_Utilities_Theme = (function()
     --[[
         Black UI Library
         Utilities/Theme.lua
@@ -2781,69 +2725,10 @@ __modules = {
     
     return Theme
     
-    end,
-    ["Utilities/Tween"] = function()
-    --[[
-        Black UI Library
-        Utilities/Tween.lua
-    
-        Wrapper fino sobre TweenService + helpers de micro-interacao
-        (hover, press) usados por praticamente todos os elementos.
-    ]]
-    
-    local TweenService = game:GetService("TweenService")
-    
-    local Tween = {}
-    
-    function Tween.Play(instance, tweenInfo, props)
-        local tw = TweenService:Create(instance, tweenInfo, props)
-        tw:Play()
-        return tw
-    end
-    
-    -- Aplica hover (BackgroundColor3 muda) + press (scale sutil) num GuiButton/Frame
-    -- theme: tabela de tema atual (para pegar TweenFast)
-    function Tween.ApplyHoverPress(guiObject, colors, theme)
-        -- colors = { Normal = Color3, Hover = Color3, Press = Color3? }
-        local tweenInfo = theme and theme.TweenFast or TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    
-        guiObject.MouseEnter:Connect(function()
-            Tween.Play(guiObject, tweenInfo, { BackgroundColor3 = colors.Hover })
-        end)
-    
-        guiObject.MouseLeave:Connect(function()
-            Tween.Play(guiObject, tweenInfo, { BackgroundColor3 = colors.Normal })
-        end)
-    
-        if guiObject:IsA("GuiButton") then
-            guiObject.MouseButton1Down:Connect(function()
-                Tween.Play(guiObject, tweenInfo, { BackgroundColor3 = colors.Press or colors.Hover })
-            end)
-            guiObject.MouseButton1Up:Connect(function()
-                Tween.Play(guiObject, tweenInfo, { BackgroundColor3 = colors.Hover })
-            end)
-        end
-    end
-    
-    -- Pequeno "squish" de escala ao clicar (via UIScale filho)
-    function Tween.PressScale(guiObject, uiScale, theme)
-        local fast = theme and theme.TweenFast or TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-        guiObject.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                Tween.Play(uiScale, fast, { Scale = 0.97 })
-            end
-        end)
-        guiObject.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                Tween.Play(uiScale, fast, { Scale = 1 })
-            end
-        end)
-    end
-    
-    return Tween
-    
-    end,
-    ["Window"] = function()
+end)()
+
+-- module: Window
+local __mod_Window = (function()
     --[[
         Black UI Library
         Window.lua
@@ -2856,11 +2741,11 @@ __modules = {
     
     local UserInputService = game:GetService("UserInputService")
     
-    local Create = __require("Utilities/Create")
-    local Draggable = __require("Utilities/Draggable")
-    local Tween = __require("Utilities/Tween")
-    local Platform = __require("Utilities/Platform")
-    local Signal = __require("Utilities/Signal")
+    local Create = __mod_Utilities_Create
+    local Draggable = __mod_Utilities_Draggable
+    local Tween = __mod_Utilities_Tween
+    local Platform = __mod_Utilities_Platform
+    local Signal = __mod_Utilities_Signal
     local Theme_ = Create.Theme
     
     local Window = {}
@@ -3174,7 +3059,7 @@ __modules = {
     end
     
     function Window:CreateTab(opts)
-        local Tab = __require("Tab")
+        local Tab = __mod_Tab
         local tab = Tab.new(self, opts)
         table.insert(self.Tabs, tab)
     
@@ -3211,7 +3096,146 @@ __modules = {
     
     return Window
     
-    end,
-}
+end)()
 
-return __require("init")
+-- module: init
+local __mod_init = (function()
+    --[[
+        Black UI Library
+        init.lua — Entry point
+    
+        Uso tipico (apos build, via loadstring):
+            local Black = loadstring(game:HttpGet("URL"))()
+            local Window = Black:CreateWindow({ Name = "My Hub" })
+            local Tab = Window:CreateTab({ Name = "Main" })
+            Tab:CreateButton({ Name = "Click me", Callback = function() end })
+    
+        Este arquivo:
+        - Cria o ScreenGui raiz (protegido via protectgui/gethui quando disponivel)
+        - Inicializa o sistema de tema (Utilities/Create + Theme)
+        - Expoe Black:CreateWindow(), Black:Notify(), Black:SetTheme()
+        - Inicializa Notification e MobileToggle
+    ]]
+    
+    local cloneref = (cloneref or clonereference or function(instance)
+        return instance
+    end)
+    
+    local CoreGui = cloneref(game:GetService("CoreGui"))
+    local Players = cloneref(game:GetService("Players"))
+    
+    local protectgui = protectgui or (syn and syn.protect_gui) or function() end
+    local gethui = gethui or function()
+        return CoreGui
+    end
+    
+    local Create = __mod_Utilities_Create
+    local Theme = __mod_Utilities_Theme
+    local Window = __mod_Window
+    local Notification = __mod_Components_Notification
+    local MobileToggle = __mod_Components_MobileToggle
+    __mod_Components_ProfileCard
+    
+    -- Carrega todos os elementos (eles se auto-registram em Tab via Tab.RegisterElement)
+    __mod_Elements_Button
+    __mod_Elements_Toggle
+    __mod_Elements_Slider
+    __mod_Elements_Input
+    __mod_Elements_Dropdown
+    __mod_Elements_Label
+    __mod_Elements_KeyBind
+    __mod_Elements_ColorPicker
+    
+    local Black = {
+        _VERSION = "1.0.0", -- versao interna da lib (nao exibida na UI)
+        Version = nil, -- versao exibida no titulo da janela; fica vazio se nao definida via CreateWindow({ Version = ... })
+        Windows = {},
+    }
+    
+    -- Tema atual (mutavel via Black:SetTheme)
+    local CurrentTheme = table.clone(Theme.Default)
+    Create.SetThemeTable(CurrentTheme)
+    Black.Theme = CurrentTheme
+    
+    -- ScreenGui raiz
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "BlackUI"
+    ScreenGui.DisplayOrder = 999
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.IgnoreGuiInset = true
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
+    do
+        local localPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
+        local ok = pcall(function()
+            protectgui(ScreenGui)
+            ScreenGui.Parent = gethui()
+        end)
+        if not ok or not ScreenGui.Parent then
+            ScreenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+        end
+    end
+    
+    Black.ScreenGui = ScreenGui
+    
+    --[[
+        Black:CreateWindow(opts)
+        opts:
+            Name (string)         - titulo da janela
+            SubTitle (string?)    - subtitulo pequeno abaixo do titulo
+            Version (string?)     - versao exibida ao lado do titulo (default: Black.Version)
+            Size (UDim2?)         - tamanho inicial
+            ToggleKeybind (Enum.KeyCode?) - tecla que abre/fecha (default RightControl)
+    ]]
+    function Black:CreateWindow(opts)
+        opts = opts or {}
+        if opts.Version then
+            self.Version = opts.Version
+        end
+        local window = Window.new(self, opts)
+        table.insert(self.Windows, window)
+    
+        -- Botao flutuante mobile (nulo em PC)
+        MobileToggle.Create(self, window)
+    
+        return window
+    end
+    
+    -- Sistema de notificacao (Black:Notify(...)) e injetado por Notification.Init
+    Notification.Init(Black)
+    
+    --[[
+        Black:SetTheme(themeTable)
+        Mescla themeTable sobre o tema atual e reaplica em todos os elementos
+        ja criados (via Create.RefreshTheme).
+    ]]
+    function Black:SetTheme(themeTable)
+        for key, value in themeTable do
+            CurrentTheme[key] = value
+        end
+        Create.RefreshTheme()
+    end
+    
+    function Black:GetTheme()
+        return CurrentTheme
+    end
+    
+    --[[
+        Black:Destroy()
+        Remove toda a UI da tela. Chamar ao descarregar o script.
+    ]]
+    function Black:Destroy()
+        for _, window in self.Windows do
+            window:Destroy()
+        end
+        self.Windows = {}
+        if ScreenGui then
+            ScreenGui:Destroy()
+        end
+    end
+    
+    return Black
+    
+end)()
+
+return __mod_init

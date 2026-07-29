@@ -4,11 +4,26 @@
     Concatena todos os modulos em src/ para um unico arquivo Lua
     (dist/Black.lua), distribuivel via loadstring(game:HttpGet(url))().
 
-    Estrategia: cada arquivo .lua em src/ se torna uma entrada num bundle
-    table { [path] = function(require) ... return Module end }.
-    Um runtime "require" minimo resolve dependencias por path relativo,
-    simulando o comportamento de `require(script.Parent.X)` do Roblox
-    dentro de um unico arquivo (sem precisar de ModuleScripts reais).
+    Estrategia (v2 — sem "require" reimplementado):
+    Bibliotecas de UI Roblox consolidadas (Rayfield, Obsidian, Fluent, ...)
+    publicam como um UNICO arquivo monolitico, sem sistema de modulos
+    proprio. Isso evita duas classes de bug reais que a v1 deste build
+    tinha:
+      1. `require` e tratado de forma especial pelo compilador Luau
+         moderno quando chamado com um literal de string — nao pode
+         ser "shadowed" por uma local com o mesmo nome.
+      2. Resolucao de path relativo (`script.Parent...`) via string e
+         fragil (upvalue scoping, caso especial de `init.lua`, etc).
+
+    Por isso, cada modulo .lua em src/ e transformado numa variavel
+    Lua local unica (baseada no path do arquivo), atribuida a partir de
+    uma IIFE `(function() ... end)()`. Os modulos sao emitidos em ordem
+    topologica (dependencias antes de quem depende delas), calculada a
+    partir do grafo de `require(script...)` de cada arquivo. Toda
+    ocorrencia de `require(script...)` no codigo-fonte e substituida
+    pelo nome da variavel local do modulo referenciado — nao ha nenhuma
+    tabela de modulos nem funcao "require" em tempo de execucao no
+    arquivo final.
 
     Uso: node build.js
 */
@@ -20,8 +35,6 @@ const SRC_DIR = path.join(__dirname, "src");
 const OUT_DIR = path.join(__dirname, "dist");
 const OUT_FILE = path.join(OUT_DIR, "Black.lua");
 
-// Ordem não importa para a resolução (é feita via grafo de require),
-// mas mantemos uma ordem legível para debug do bundle gerado.
 function walk(dir, base = "") {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     let files = [];
@@ -38,94 +51,141 @@ function walk(dir, base = "") {
 }
 
 function toModuleKey(relPath) {
-    // "Elements/Button" -> "Elements/Button"
-    // "init" -> "init"
     return relPath.replace(/\\/g, "/");
 }
 
-function rewriteRequires(source, currentKey) {
-    // Reescreve `require(script.X.Y)` e `require(script.Parent.X.Y)` para
-    // `require("<modulekey>")` resolvendo o caminho relativo ao modulo atual.
-    const currentDir = currentKey.includes("/") ? currentKey.split("/").slice(0, -1) : [];
+// Nome de variavel Lua valido e unico por modulo, ex: "Utilities/Create" -> "__mod_Utilities_Create"
+function toVarName(moduleKey) {
+    return "__mod_" + moduleKey.replace(/[\\/]/g, "_");
+}
 
+// Resolve o path de modulo referenciado por uma expressao `script...`
+// (ja sem o prefixo "script"), relativo ao modulo `currentKey`.
+function resolveRequirePath(expr, currentKey, moduleKeys) {
+    const segments = currentKey.split("/");
+    const isInit = segments[segments.length - 1] === "init";
+    const currentPath = isInit ? segments.slice(0, -1) : segments;
+
+    const parts = expr.split(".").slice(1); // remove "script"
+    let dir = currentPath.slice();
+    const segs = [];
+
+    for (const part of parts) {
+        if (part === "Parent") {
+            dir.pop();
+        } else {
+            segs.push(part);
+        }
+    }
+
+    let resolved = dir.concat(segs).join("/");
+    if (!moduleKeys.has(resolved) && moduleKeys.has(resolved + "/init")) {
+        resolved = resolved + "/init";
+    }
+    return resolved;
+}
+
+// Extrai as chaves de modulo que `source` (do modulo `currentKey`) requer,
+// para montarmos o grafo de dependencias.
+function extractDependencies(source, currentKey, moduleKeys) {
+    const deps = new Set();
+    const pattern = /require\(\s*(script(?:\.Parent|\.[A-Za-z_][A-Za-z0-9_]*)*)\s*\)/g;
+    let match;
+    while ((match = pattern.exec(source))) {
+        const resolved = resolveRequirePath(match[1], currentKey, moduleKeys);
+        deps.add(resolved);
+    }
+    return deps;
+}
+
+function rewriteRequires(source, currentKey, moduleKeys) {
     return source.replace(/require\(\s*(script(?:\.Parent|\.[A-Za-z_][A-Za-z0-9_]*)*)\s*\)/g, (match, expr) => {
-        const parts = expr.split(".").slice(1); // remove "script"
-        let dir = currentDir.slice();
-        const segs = [];
-
-        for (const part of parts) {
-            if (part === "Parent") {
-                dir.pop();
-            } else {
-                segs.push(part);
-            }
+        const resolved = resolveRequirePath(expr, currentKey, moduleKeys);
+        if (!moduleKeys.has(resolved)) {
+            throw new Error(`Modulo referenciado nao encontrado: "${resolved}" (a partir de "${currentKey}", expressao "${match}")`);
         }
-
-        const resolvedParts = dir.concat(segs);
-        let resolved = resolvedParts.join("/");
-
-        // Se resolveu para um diretorio (modulo tipo pasta), tenta "/init"
-        if (!MODULE_KEYS.has(resolved) && MODULE_KEYS.has(resolved + "/init")) {
-            resolved = resolved + "/init";
-        }
-
-        return `__require("${resolved}")`;
+        return toVarName(resolved);
     });
 }
 
-let MODULE_KEYS = new Set();
+function topoSort(moduleKeys, depsByKey) {
+    const visited = new Set();
+    const visiting = new Set();
+    const order = [];
+
+    function visit(key) {
+        if (visited.has(key)) return;
+        if (visiting.has(key)) {
+            throw new Error(`Dependencia circular detectada envolvendo "${key}"`);
+        }
+        visiting.add(key);
+        for (const dep of depsByKey.get(key) || []) {
+            visit(dep);
+        }
+        visiting.delete(key);
+        visited.add(key);
+        order.push(key);
+    }
+
+    for (const key of moduleKeys) {
+        visit(key);
+    }
+    return order;
+}
 
 function build() {
     const files = walk(SRC_DIR);
-    const modules = [];
+    const moduleKeys = new Set(files.map((f) => toModuleKey(f.rel)));
 
+    const sourceByKey = new Map();
     for (const file of files) {
         const key = toModuleKey(file.rel);
-        MODULE_KEYS.add(key);
-        modules.push({ key, full: file.full });
+        sourceByKey.set(key, fs.readFileSync(file.full, "utf8"));
     }
 
-    const entries = [];
-    for (const mod of modules) {
-        let source = fs.readFileSync(mod.full, "utf8");
-        source = rewriteRequires(source, mod.key);
-        entries.push(`["${mod.key}"] = function()\n${source}\nend,`);
+    const depsByKey = new Map();
+    for (const key of moduleKeys) {
+        depsByKey.set(key, extractDependencies(sourceByKey.get(key), key, moduleKeys));
+    }
+
+    const order = topoSort(moduleKeys, depsByKey);
+
+    // "init" precisa ser o ultimo (e o entry point / valor de retorno do bundle).
+    const initIndex = order.indexOf("init");
+    if (initIndex === -1) {
+        throw new Error('Modulo "init" nao encontrado em src/init.lua');
+    }
+    order.splice(initIndex, 1);
+    order.push("init");
+
+    const blocks = [];
+    for (const key of order) {
+        const rewritten = rewriteRequires(sourceByKey.get(key), key, moduleKeys);
+        const varName = toVarName(key);
+        const indented = rewritten
+            .split("\n")
+            .map((line) => "    " + line)
+            .join("\n");
+        blocks.push(`-- module: ${key}\nlocal ${varName} = (function()\n${indented}\nend)()`);
     }
 
     const runtime = `--[[
     BLACK UI LIBRARY
     Bundled build — gerado automaticamente por build.js. NAO EDITE A MAO.
     Fonte: src/*.lua
+
+    Arquivo unico monolitico (sem sistema de "require" em tempo de
+    execucao), no mesmo padrao usado por libs de UI Roblox consolidadas.
 ]]
 
-local __cache = {}
-local __modules
-local __require
+${blocks.join("\n\n")}
 
-local function __require_impl(path)
-    if __cache[path] ~= nil then
-        return __cache[path]
-    end
-    local loader = __modules[path]
-    if not loader then
-        error("Black UI: modulo nao encontrado: " .. tostring(path), 2)
-    end
-    local result = loader()
-    __cache[path] = result
-    return result
-end
-__require = __require_impl
-
-__modules = {
-${entries.map((e) => "    " + e.replace(/\n/g, "\n    ")).join("\n")}
-}
-
-return __require("init")
+return ${toVarName("init")}
 `;
 
     fs.mkdirSync(OUT_DIR, { recursive: true });
     fs.writeFileSync(OUT_FILE, runtime, "utf8");
-    console.log(`Build ok -> ${OUT_FILE} (${modules.length} modulos)`);
+    console.log(`Build ok -> ${OUT_FILE} (${order.length} modulos, ordem: ${order.join(", ")})`);
 }
 
 build();
