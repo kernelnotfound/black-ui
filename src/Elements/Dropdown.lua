@@ -113,6 +113,7 @@ Tab.RegisterElement("CreateDropdown", function(tab, opts)
         BackgroundTransparency = 1,
         Size = UDim2.fromScale(1, 1),
         Text = "",
+        ZIndex = 4,
         Parent = Holder,
     })
 
@@ -191,6 +192,7 @@ Tab.RegisterElement("CreateDropdown", function(tab, opts)
             AutoButtonColor = false,
             Size = UDim2.new(1, 0, 0, itemHeight),
             Text = "",
+            ZIndex = 11,
             Parent = List,
         })
 
