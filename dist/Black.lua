@@ -536,15 +536,16 @@ local __mod_Components_LoadingScreen = (function()
             Name = "Content",
             BackgroundTransparency = 1,
             AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.fromScale(0.5, 0.46),
-            Size = UDim2.new(1, -32, 1, -80),
+            Position = UDim2.fromScale(0.5, 0.5),
+            Size = UDim2.new(1, -32, 1, -72),
             Parent = Card,
             Children = {
                 Create.New("UIListLayout", {
                     FillDirection = Enum.FillDirection.Vertical,
                     HorizontalAlignment = Enum.HorizontalAlignment.Center,
                     VerticalAlignment = Enum.VerticalAlignment.Center,
-                    Padding = UDim.new(0, 10),
+                    SortOrder = Enum.SortOrder.LayoutOrder,
+                    Padding = UDim.new(0, 8),
                 }),
             },
         })
@@ -594,32 +595,34 @@ local __mod_Components_LoadingScreen = (function()
     
         -- Barra de progresso "neon branca", fixa na parte inferior do card.
         local BarWidth = fullscreen and 320 or (size.X.Offset - 64)
+        local BarHeight = 6
         local Track = Create.New("Frame", {
             Name = "ProgressTrack",
             AnchorPoint = Vector2.new(0.5, 1),
-            Position = UDim2.new(0.5, 0, 1, -28),
-            Size = UDim2.fromOffset(BarWidth, 4),
+            Position = UDim2.new(0.5, 0, 1, -24),
+            Size = UDim2.fromOffset(BarWidth, BarHeight),
             BackgroundColor3 = Theme_("SurfaceElevated"),
             Parent = Card,
             Children = {
                 Create.New("UICorner", { CornerRadius = theme.CornerRadiusPill }),
+                Create.New("UIStroke", { Color = Theme_("Border"), Thickness = 1, Transparency = 0.4 }),
             },
         })
     
         local Fill = Create.New("Frame", {
             Name = "Fill",
             Size = UDim2.new(0, 0, 1, 0),
-            BackgroundColor3 = Theme_("Accent"),
+            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
             Parent = Track,
             Children = {
                 Create.New("UICorner", { CornerRadius = theme.CornerRadiusPill }),
-                -- Efeito "neon": UIStroke branco com transparencia baixa,
-                -- expandindo visualmente o brilho do preenchimento sem
-                -- depender de nenhum asset de imagem externo.
+                -- Efeito "neon": UIStroke branco levemente transparente ao redor
+                -- do preenchimento, criando um halo de brilho sem depender de
+                -- nenhum asset de imagem externo.
                 Create.New("UIStroke", {
                     Color = Color3.fromRGB(255, 255, 255),
-                    Thickness = 3,
-                    Transparency = 0.55,
+                    Thickness = 2.5,
+                    Transparency = 0.5,
                     ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
                 }),
             },
@@ -647,7 +650,7 @@ local __mod_Components_LoadingScreen = (function()
             indeterminateThread = task.spawn(function()
                 local segmentWidth = BarWidth * 0.35
                 while true do
-                    Fill.Size = UDim2.fromOffset(segmentWidth, 4)
+                    Fill.Size = UDim2.fromOffset(segmentWidth, BarHeight)
                     Tween.Play(Fill, TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
                         Position = UDim2.fromOffset(BarWidth - segmentWidth, 0),
                     })
@@ -666,7 +669,7 @@ local __mod_Components_LoadingScreen = (function()
             alpha = math.clamp(alpha, 0, 1)
             self.Progress = alpha
             Fill.Position = UDim2.fromOffset(0, 0)
-            Tween.Play(Fill, theme.TweenFast, { Size = UDim2.fromOffset(BarWidth * alpha, 4) })
+            Tween.Play(Fill, theme.TweenFast, { Size = UDim2.fromOffset(BarWidth * alpha, BarHeight) })
         end
     
         -- :SetStatus(text) — atualiza o texto abaixo do titulo (ex: "Baixando X...").
@@ -854,15 +857,19 @@ local __mod_Components_Notification = (function()
                 Create.New("UIListLayout", {
                     VerticalAlignment = Enum.VerticalAlignment.Bottom,
                     HorizontalAlignment = Enum.HorizontalAlignment.Right,
+                    SortOrder = Enum.SortOrder.LayoutOrder,
                     Padding = UDim.new(0, 8),
                 }),
             },
         })
     
+        local toastCounter = 0
+    
         function Black:Notify(opts)
             opts = opts or {}
             local duration = opts.Duration or opts.Time or 3
             local typeKey = TypeColors[opts.Type or "Info"] or "Accent"
+            toastCounter = toastCounter + 1
     
             -- Toast: sua posicao dentro de "Area" e controlada inteiramente pelo
             -- UIListLayout do pai (empilha de baixo para cima). Nao definimos
@@ -873,6 +880,7 @@ local __mod_Components_Notification = (function()
                 BackgroundTransparency = 1,
                 Size = UDim2.new(1, 0, 0, 0),
                 AutomaticSize = Enum.AutomaticSize.Y,
+                LayoutOrder = toastCounter,
                 ClipsDescendants = true,
                 Parent = Area,
             })
@@ -907,7 +915,10 @@ local __mod_Components_Notification = (function()
                 AutomaticSize = Enum.AutomaticSize.Y,
                 Parent = Slider,
                 Children = {
-                    Create.New("UIListLayout", { Padding = UDim.new(0, 2) }),
+                    Create.New("UIListLayout", {
+                        SortOrder = Enum.SortOrder.LayoutOrder,
+                        Padding = UDim.new(0, 2),
+                    }),
                     Create.New("UIPadding", {
                         PaddingLeft = UDim.new(0, 14),
                         PaddingRight = UDim.new(0, 10),
@@ -1100,6 +1111,7 @@ local __mod_Tab = (function()
             Parent = window.Content,
             Children = {
                 Create.New("UIListLayout", {
+                    SortOrder = Enum.SortOrder.LayoutOrder,
                     Padding = UDim.new(0, 8),
                 }),
                 Create.New("UIPadding", {
@@ -1117,10 +1129,19 @@ local __mod_Tab = (function()
     -- Os metodos CreateButton/CreateToggle/etc sao anexados em Elements/*.lua
     -- via Tab.RegisterElement, para manter cada componente isolado no seu
     -- proprio arquivo (evita um Tab.lua gigante).
+    --
+    -- Cada elemento recebe um LayoutOrder incremental (ordem de criacao), pois
+    -- o UIListLayout da Page usa SortOrder.LayoutOrder — sem isso todos ficariam
+    -- com LayoutOrder 0 e a ordem visual seria indefinida.
     function Tab.RegisterElement(name, factoryFn)
         Tab[name] = function(self, opts)
             local element = factoryFn(self, opts)
             table.insert(self.Elements, element)
+    
+            if element and element.Instance then
+                element.Instance.LayoutOrder = #self.Elements
+            end
+    
             return element
         end
     end
@@ -2021,7 +2042,7 @@ local __mod_Elements_Dropdown = (function()
             Children = {
                 Create.New("UICorner", { CornerRadius = theme.CornerRadiusSmall }),
                 Create.New("UIStroke", { Color = Theme_("Border"), Thickness = 1 }),
-                Create.New("UIListLayout", {}),
+                Create.New("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder }),
             },
         })
     
@@ -2067,9 +2088,10 @@ local __mod_Elements_Dropdown = (function()
             fireChange()
         end
     
-        for _, value in values do
+        for index, value in values do
             local Item = Create.New("TextButton", {
                 Name = "Item",
+                LayoutOrder = index,
                 BackgroundColor3 = Theme_("SurfaceElevated"),
                 AutoButtonColor = false,
                 Size = UDim2.new(1, 0, 0, itemHeight),
@@ -2570,6 +2592,7 @@ local __mod_Elements_Label = (function()
                     PaddingBottom = UDim.new(0, 10),
                 }),
                 Create.New("UIListLayout", {
+                    SortOrder = Enum.SortOrder.LayoutOrder,
                     Padding = UDim.new(0, 4),
                 }),
             },
@@ -3400,15 +3423,17 @@ local __mod_Window = (function()
                     FillDirection = Enum.FillDirection.Horizontal,
                     HorizontalAlignment = Enum.HorizontalAlignment.Right,
                     VerticalAlignment = Enum.VerticalAlignment.Center,
+                    SortOrder = Enum.SortOrder.LayoutOrder,
                     Padding = UDim.new(0, 6),
                 }),
             },
         })
     
-        local function makeControlButton(glyph)
+        local function makeControlButton(glyph, order)
             local btn = Create.New("TextButton", {
                 BackgroundColor3 = Theme_("SurfaceElevated"),
                 Size = UDim2.fromOffset(26, 26),
+                LayoutOrder = order,
                 AutoButtonColor = false,
                 Font = Theme_("FontBold"),
                 Text = glyph,
@@ -3426,8 +3451,8 @@ local __mod_Window = (function()
             return btn
         end
     
-        local MinimizeBtn = makeControlButton("–")
-        local CloseBtn = makeControlButton("×")
+        local MinimizeBtn = makeControlButton("–", 1)
+        local CloseBtn = makeControlButton("×", 2)
     
         -- Body: sidebar + content
         self.Body = Create.New("Frame", {
@@ -3476,6 +3501,7 @@ local __mod_Window = (function()
             Parent = self.Sidebar,
             Children = {
                 Create.New("UIListLayout", {
+                    SortOrder = Enum.SortOrder.LayoutOrder,
                     Padding = UDim.new(0, 4),
                 }),
                 Create.New("UIPadding", {
@@ -3690,6 +3716,10 @@ local __mod_Window = (function()
         local Tab = __mod_Tab
         local tab = Tab.new(self, opts)
         table.insert(self.Tabs, tab)
+    
+        -- LayoutOrder incremental para a sidebar respeitar a ordem de criacao
+        -- (o UIListLayout da TabList usa SortOrder.LayoutOrder).
+        tab.Button.LayoutOrder = #self.Tabs
     
         if #self.Tabs == 1 then
             self:SelectTab(tab)

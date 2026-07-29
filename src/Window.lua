@@ -205,15 +205,17 @@ function Window.new(Black, opts)
                 FillDirection = Enum.FillDirection.Horizontal,
                 HorizontalAlignment = Enum.HorizontalAlignment.Right,
                 VerticalAlignment = Enum.VerticalAlignment.Center,
+                SortOrder = Enum.SortOrder.LayoutOrder,
                 Padding = UDim.new(0, 6),
             }),
         },
     })
 
-    local function makeControlButton(glyph)
+    local function makeControlButton(glyph, order)
         local btn = Create.New("TextButton", {
             BackgroundColor3 = Theme_("SurfaceElevated"),
             Size = UDim2.fromOffset(26, 26),
+            LayoutOrder = order,
             AutoButtonColor = false,
             Font = Theme_("FontBold"),
             Text = glyph,
@@ -231,8 +233,8 @@ function Window.new(Black, opts)
         return btn
     end
 
-    local MinimizeBtn = makeControlButton("–")
-    local CloseBtn = makeControlButton("×")
+    local MinimizeBtn = makeControlButton("–", 1)
+    local CloseBtn = makeControlButton("×", 2)
 
     -- Body: sidebar + content
     self.Body = Create.New("Frame", {
@@ -281,6 +283,7 @@ function Window.new(Black, opts)
         Parent = self.Sidebar,
         Children = {
             Create.New("UIListLayout", {
+                SortOrder = Enum.SortOrder.LayoutOrder,
                 Padding = UDim.new(0, 4),
             }),
             Create.New("UIPadding", {
@@ -495,6 +498,10 @@ function Window:CreateTab(opts)
     local Tab = require(script.Parent.Tab)
     local tab = Tab.new(self, opts)
     table.insert(self.Tabs, tab)
+
+    -- LayoutOrder incremental para a sidebar respeitar a ordem de criacao
+    -- (o UIListLayout da TabList usa SortOrder.LayoutOrder).
+    tab.Button.LayoutOrder = #self.Tabs
 
     if #self.Tabs == 1 then
         self:SelectTab(tab)

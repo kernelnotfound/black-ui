@@ -137,7 +137,7 @@ Tab.RegisterElement("CreateDropdown", function(tab, opts)
         Children = {
             Create.New("UICorner", { CornerRadius = theme.CornerRadiusSmall }),
             Create.New("UIStroke", { Color = Theme_("Border"), Thickness = 1 }),
-            Create.New("UIListLayout", {}),
+            Create.New("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder }),
         },
     })
 
@@ -183,9 +183,10 @@ Tab.RegisterElement("CreateDropdown", function(tab, opts)
         fireChange()
     end
 
-    for _, value in values do
+    for index, value in values do
         local Item = Create.New("TextButton", {
             Name = "Item",
+            LayoutOrder = index,
             BackgroundColor3 = Theme_("SurfaceElevated"),
             AutoButtonColor = false,
             Size = UDim2.new(1, 0, 0, itemHeight),

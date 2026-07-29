@@ -35,15 +35,19 @@ function Notification.Init(Black)
             Create.New("UIListLayout", {
                 VerticalAlignment = Enum.VerticalAlignment.Bottom,
                 HorizontalAlignment = Enum.HorizontalAlignment.Right,
+                SortOrder = Enum.SortOrder.LayoutOrder,
                 Padding = UDim.new(0, 8),
             }),
         },
     })
 
+    local toastCounter = 0
+
     function Black:Notify(opts)
         opts = opts or {}
         local duration = opts.Duration or opts.Time or 3
         local typeKey = TypeColors[opts.Type or "Info"] or "Accent"
+        toastCounter = toastCounter + 1
 
         -- Toast: sua posicao dentro de "Area" e controlada inteiramente pelo
         -- UIListLayout do pai (empilha de baixo para cima). Nao definimos
@@ -54,6 +58,7 @@ function Notification.Init(Black)
             BackgroundTransparency = 1,
             Size = UDim2.new(1, 0, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
+            LayoutOrder = toastCounter,
             ClipsDescendants = true,
             Parent = Area,
         })
@@ -88,7 +93,10 @@ function Notification.Init(Black)
             AutomaticSize = Enum.AutomaticSize.Y,
             Parent = Slider,
             Children = {
-                Create.New("UIListLayout", { Padding = UDim.new(0, 2) }),
+                Create.New("UIListLayout", {
+                    SortOrder = Enum.SortOrder.LayoutOrder,
+                    Padding = UDim.new(0, 2),
+                }),
                 Create.New("UIPadding", {
                     PaddingLeft = UDim.new(0, 14),
                     PaddingRight = UDim.new(0, 10),

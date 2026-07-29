@@ -1,1 +1,1 @@
-Add optional LoadingScreen component (Black:CreateLoadingScreen): compact card or fullscreen, determinate/indeterminate white neon progress bar, dev-controlled
+Fix UIListLayout SortOrder (was defaulting to Name, ignoring LayoutOrder) across all layouts; assign incremental LayoutOrder to tabs, elements, dropdown items and toasts; improve loading bar visibility

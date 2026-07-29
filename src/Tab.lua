@@ -71,6 +71,7 @@ function Tab.new(window, opts)
         Parent = window.Content,
         Children = {
             Create.New("UIListLayout", {
+                SortOrder = Enum.SortOrder.LayoutOrder,
                 Padding = UDim.new(0, 8),
             }),
             Create.New("UIPadding", {
@@ -88,10 +89,19 @@ end
 -- Os metodos CreateButton/CreateToggle/etc sao anexados em Elements/*.lua
 -- via Tab.RegisterElement, para manter cada componente isolado no seu
 -- proprio arquivo (evita um Tab.lua gigante).
+--
+-- Cada elemento recebe um LayoutOrder incremental (ordem de criacao), pois
+-- o UIListLayout da Page usa SortOrder.LayoutOrder — sem isso todos ficariam
+-- com LayoutOrder 0 e a ordem visual seria indefinida.
 function Tab.RegisterElement(name, factoryFn)
     Tab[name] = function(self, opts)
         local element = factoryFn(self, opts)
         table.insert(self.Elements, element)
+
+        if element and element.Instance then
+            element.Instance.LayoutOrder = #self.Elements
+        end
+
         return element
     end
 end

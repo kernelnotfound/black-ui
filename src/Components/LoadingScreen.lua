@@ -86,15 +86,16 @@ function LoadingScreen.Create(Black, opts)
         Name = "Content",
         BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.fromScale(0.5, 0.46),
-        Size = UDim2.new(1, -32, 1, -80),
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.new(1, -32, 1, -72),
         Parent = Card,
         Children = {
             Create.New("UIListLayout", {
                 FillDirection = Enum.FillDirection.Vertical,
                 HorizontalAlignment = Enum.HorizontalAlignment.Center,
                 VerticalAlignment = Enum.VerticalAlignment.Center,
-                Padding = UDim.new(0, 10),
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                Padding = UDim.new(0, 8),
             }),
         },
     })
@@ -144,32 +145,34 @@ function LoadingScreen.Create(Black, opts)
 
     -- Barra de progresso "neon branca", fixa na parte inferior do card.
     local BarWidth = fullscreen and 320 or (size.X.Offset - 64)
+    local BarHeight = 6
     local Track = Create.New("Frame", {
         Name = "ProgressTrack",
         AnchorPoint = Vector2.new(0.5, 1),
-        Position = UDim2.new(0.5, 0, 1, -28),
-        Size = UDim2.fromOffset(BarWidth, 4),
+        Position = UDim2.new(0.5, 0, 1, -24),
+        Size = UDim2.fromOffset(BarWidth, BarHeight),
         BackgroundColor3 = Theme_("SurfaceElevated"),
         Parent = Card,
         Children = {
             Create.New("UICorner", { CornerRadius = theme.CornerRadiusPill }),
+            Create.New("UIStroke", { Color = Theme_("Border"), Thickness = 1, Transparency = 0.4 }),
         },
     })
 
     local Fill = Create.New("Frame", {
         Name = "Fill",
         Size = UDim2.new(0, 0, 1, 0),
-        BackgroundColor3 = Theme_("Accent"),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
         Parent = Track,
         Children = {
             Create.New("UICorner", { CornerRadius = theme.CornerRadiusPill }),
-            -- Efeito "neon": UIStroke branco com transparencia baixa,
-            -- expandindo visualmente o brilho do preenchimento sem
-            -- depender de nenhum asset de imagem externo.
+            -- Efeito "neon": UIStroke branco levemente transparente ao redor
+            -- do preenchimento, criando um halo de brilho sem depender de
+            -- nenhum asset de imagem externo.
             Create.New("UIStroke", {
                 Color = Color3.fromRGB(255, 255, 255),
-                Thickness = 3,
-                Transparency = 0.55,
+                Thickness = 2.5,
+                Transparency = 0.5,
                 ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
             }),
         },
@@ -197,7 +200,7 @@ function LoadingScreen.Create(Black, opts)
         indeterminateThread = task.spawn(function()
             local segmentWidth = BarWidth * 0.35
             while true do
-                Fill.Size = UDim2.fromOffset(segmentWidth, 4)
+                Fill.Size = UDim2.fromOffset(segmentWidth, BarHeight)
                 Tween.Play(Fill, TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
                     Position = UDim2.fromOffset(BarWidth - segmentWidth, 0),
                 })
@@ -216,7 +219,7 @@ function LoadingScreen.Create(Black, opts)
         alpha = math.clamp(alpha, 0, 1)
         self.Progress = alpha
         Fill.Position = UDim2.fromOffset(0, 0)
-        Tween.Play(Fill, theme.TweenFast, { Size = UDim2.fromOffset(BarWidth * alpha, 4) })
+        Tween.Play(Fill, theme.TweenFast, { Size = UDim2.fromOffset(BarWidth * alpha, BarHeight) })
     end
 
     -- :SetStatus(text) — atualiza o texto abaixo do titulo (ex: "Baixando X...").

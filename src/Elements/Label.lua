@@ -58,6 +58,7 @@ Tab.RegisterElement("CreateParagraph", function(tab, opts)
                 PaddingBottom = UDim.new(0, 10),
             }),
             Create.New("UIListLayout", {
+                SortOrder = Enum.SortOrder.LayoutOrder,
                 Padding = UDim.new(0, 4),
             }),
         },
