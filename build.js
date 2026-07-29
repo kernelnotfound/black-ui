@@ -99,7 +99,17 @@ function extractDependencies(source, currentKey, moduleKeys) {
 }
 
 function rewriteRequires(source, currentKey, moduleKeys) {
-    return source.replace(/require\(\s*(script(?:\.Parent|\.[A-Za-z_][A-Za-z0-9_]*)*)\s*\)/g, (match, expr) => {
+    return source.replace(/^([ \t]*)require\(\s*(script(?:\.Parent|\.[A-Za-z_][A-Za-z0-9_]*)*)\s*\)[ \t]*$/gm, (match, indent, expr) => {
+        // `require(script.X)` usado como statement solto (sem atribuicao):
+        // no modelo monolitico o modulo referenciado ja foi executado quando
+        // sua IIFE `local __mod_X = (function() ... end)()` foi declarada
+        // (mais acima no arquivo), entao aqui so precisamos remover a linha.
+        const resolved = resolveRequirePath(expr, currentKey, moduleKeys);
+        if (!moduleKeys.has(resolved)) {
+            throw new Error(`Modulo referenciado nao encontrado: "${resolved}" (a partir de "${currentKey}", expressao "${match.trim()}")`);
+        }
+        return `${indent}-- (modulo "${resolved}" ja carregado acima)`;
+    }).replace(/require\(\s*(script(?:\.Parent|\.[A-Za-z_][A-Za-z0-9_]*)*)\s*\)/g, (match, expr) => {
         const resolved = resolveRequirePath(expr, currentKey, moduleKeys);
         if (!moduleKeys.has(resolved)) {
             throw new Error(`Modulo referenciado nao encontrado: "${resolved}" (a partir de "${currentKey}", expressao "${match}")`);

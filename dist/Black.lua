@@ -3134,17 +3134,17 @@ local __mod_init = (function()
     local Window = __mod_Window
     local Notification = __mod_Components_Notification
     local MobileToggle = __mod_Components_MobileToggle
-    __mod_Components_ProfileCard
+    -- (modulo "Components/ProfileCard" ja carregado acima)
     
     -- Carrega todos os elementos (eles se auto-registram em Tab via Tab.RegisterElement)
-    __mod_Elements_Button
-    __mod_Elements_Toggle
-    __mod_Elements_Slider
-    __mod_Elements_Input
-    __mod_Elements_Dropdown
-    __mod_Elements_Label
-    __mod_Elements_KeyBind
-    __mod_Elements_ColorPicker
+    -- (modulo "Elements/Button" ja carregado acima)
+    -- (modulo "Elements/Toggle" ja carregado acima)
+    -- (modulo "Elements/Slider" ja carregado acima)
+    -- (modulo "Elements/Input" ja carregado acima)
+    -- (modulo "Elements/Dropdown" ja carregado acima)
+    -- (modulo "Elements/Label" ja carregado acima)
+    -- (modulo "Elements/KeyBind" ja carregado acima)
+    -- (modulo "Elements/ColorPicker" ja carregado acima)
     
     local Black = {
         _VERSION = "1.0.0", -- versao interna da lib (nao exibida na UI)
