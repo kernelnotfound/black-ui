@@ -84,12 +84,17 @@ function Notification.Init(Black)
 
         local TextHolder = Create.New("Frame", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(14, 10),
-            Size = UDim2.new(1, -24, 0, 0),
+            Size = UDim2.new(1, 0, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
             Parent = Slider,
             Children = {
                 Create.New("UIListLayout", { Padding = UDim.new(0, 2) }),
+                Create.New("UIPadding", {
+                    PaddingLeft = UDim.new(0, 14),
+                    PaddingRight = UDim.new(0, 10),
+                    PaddingTop = UDim.new(0, 10),
+                    PaddingBottom = UDim.new(0, 10),
+                }),
             },
         })
 
@@ -123,22 +128,24 @@ function Notification.Init(Black)
             })
         end
 
-        -- padding inferior (compensa o AutomaticSize do TextHolder)
+        -- espaco entre o texto e a barra de progresso
         Create.New("Frame", {
             BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 0, 10),
-            LayoutOrder = 99,
+            Size = UDim2.new(1, 0, 0, 8),
+            LayoutOrder = 98,
             Parent = TextHolder,
         })
 
-        -- Barra de progresso (tempo restante)
+        -- Barra de progresso (tempo restante) — incluida no fluxo do
+        -- UIListLayout (nao ancorada/absoluta), para que o AutomaticSize.Y
+        -- do Slider contabilize sua altura corretamente e ela nunca seja
+        -- cortada pelo ClipsDescendants do Toast.
         local ProgressTrack = Create.New("Frame", {
             Name = "ProgressTrack",
-            AnchorPoint = Vector2.new(0, 1),
-            Position = UDim2.new(0, 0, 1, 0),
             Size = UDim2.new(1, 0, 0, 2),
+            LayoutOrder = 99,
             BackgroundColor3 = Theme_("Border"),
-            Parent = Slider,
+            Parent = TextHolder,
         })
         local ProgressFill = Create.New("Frame", {
             Size = UDim2.new(1, 0, 1, 0),
