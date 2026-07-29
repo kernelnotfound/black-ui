@@ -1,1 +1,1 @@
-Add MinimizeStyle "Bubble" (draggable floating icon); extract FloatingBubble shared component; fix RightControl/SetVisible to hide whichever visual form (window, topbar icon, or bubble) is currently active, without altering Minimized state
+Add optional LoadingScreen component (Black:CreateLoadingScreen): compact card or fullscreen, determinate/indeterminate white neon progress bar, dev-controlled

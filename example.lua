@@ -8,6 +8,23 @@
 
 local Black = loadstring(game:HttpGet("https://raw.githubusercontent.com/kernelnotfound/black-ui/main/dist/Black.lua"))()
 
+-- Loading screen (opcional) ----------------------------------------------
+-- Simula um carregamento de recursos com progresso determinado.
+local Loading = Black:CreateLoadingScreen({
+    Title = "Black UI",
+    Subtitle = "Carregando exemplo...",
+    -- Fullscreen = true, -- descomente para cobrir a tela inteira
+})
+
+task.spawn(function()
+    for i = 1, 10 do
+        task.wait(0.08)
+        Loading:SetProgress(i / 10)
+        Loading:SetStatus(("Carregando... %d%%"):format(i * 10))
+    end
+    Loading:Finish()
+end)
+
 -- Janela principal -----------------------------------------------------
 local Window = Black:CreateWindow({
     Name = "Black UI",

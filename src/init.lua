@@ -50,6 +50,7 @@ local Theme = require(script.Utilities.Theme)
 local Window = require(script.Window)
 local Notification = require(script.Components.Notification)
 local MobileToggle = require(script.Components.MobileToggle)
+local LoadingScreen = require(script.Components.LoadingScreen)
 require(script.Components.ProfileCard)
 
 -- Carrega todos os elementos (eles se auto-registram em Tab via Tab.RegisterElement)
@@ -124,6 +125,28 @@ end
 
 -- Sistema de notificacao (Black:Notify(...)) e injetado por Notification.Init
 Notification.Init(Black)
+
+--[[
+    Black:CreateLoadingScreen(opts)
+    Tela de carregamento opcional, controlada inteiramente por quem usa a lib.
+    opts:
+        Title (string?)       - titulo exibido
+        Subtitle (string?)    - texto de status inicial (pode ser atualizado via :SetStatus)
+        Image (string?)       - rbxassetid:// exibido acima do titulo (whitelabel)
+        ImageSize (UDim2?)
+        ImageColor (Color3?)
+        Size (UDim2?)         - tamanho do card (ignorado se Fullscreen = true)
+        Fullscreen (boolean?) - true para cobrir a tela inteira (default: false, card compacto)
+
+    Retorna um objeto com:
+        :SetProgress(alpha)  - 0 a 1; desliga o modo indeterminado (barra em loop) na 1a chamada
+        :SetStatus(text)     - atualiza o texto de status
+        :SetTitle(text)      - atualiza o titulo
+        :Finish(onComplete?) - fade-out e remove a tela; onComplete e chamado ao terminar
+]]
+function Black:CreateLoadingScreen(opts)
+    return LoadingScreen.Create(self, opts)
+end
 
 --[[
     Black:SetTheme(themeTable)
