@@ -635,11 +635,19 @@ local __mod_Components_LoadingScreen = (function()
         }
     
         local indeterminateThread = nil
+        local indeterminateTween = nil
     
         local function stopIndeterminate()
             if indeterminateThread then
                 task.cancel(indeterminateThread)
                 indeterminateThread = nil
+            end
+            -- task.cancel mata a thread, mas NAO cancela tweens ja iniciados por
+            -- ela — sem isso, o tween em andamento continua sobrescrevendo
+            -- Fill.Position depois de :SetProgress() ser chamado.
+            if indeterminateTween then
+                indeterminateTween:Cancel()
+                indeterminateTween = nil
             end
         end
     
@@ -650,13 +658,12 @@ local __mod_Components_LoadingScreen = (function()
             indeterminateThread = task.spawn(function()
                 local segmentWidth = BarWidth * 0.35
                 while true do
+                    Fill.Position = UDim2.fromOffset(0, 0)
                     Fill.Size = UDim2.fromOffset(segmentWidth, BarHeight)
-                    Tween.Play(Fill, TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                    indeterminateTween = Tween.Play(Fill, TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
                         Position = UDim2.fromOffset(BarWidth - segmentWidth, 0),
                     })
-                    task.wait(0.9)
-                    Fill.Position = UDim2.fromOffset(0, 0)
-                    task.wait(0.05)
+                    task.wait(0.95)
                 end
             end)
         end

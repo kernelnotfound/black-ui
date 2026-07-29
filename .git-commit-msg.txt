@@ -1,1 +1,1 @@
-Fix UIListLayout SortOrder (was defaulting to Name, ignoring LayoutOrder) across all layouts; assign incremental LayoutOrder to tabs, elements, dropdown items and toasts; improve loading bar visibility
+Fix loading bar fill offset: cancel in-flight indeterminate tween before applying explicit progress
