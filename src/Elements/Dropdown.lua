@@ -274,7 +274,23 @@ Tab.RegisterElement("CreateDropdown", function(tab, opts)
         end
     end)
 
-    UserInputService.InputBegan:Connect(function(input)
+    -- Fecha ao clicar fora do dropdown. Usa GetGuiObjectsAtPosition (relativo
+    -- a tela, ja contabiliza GuiInset corretamente) em vez de comparar
+    -- AbsolutePosition/AbsoluteSize manualmente contra GetMouseLocation --
+    -- essa comparacao manual desalinhava com IgnoreGuiInset = true e fechava
+    -- a lista antes do clique no item ser processado.
+    local function getBasePlayerGui()
+        local ancestor = Holder:FindFirstAncestorWhichIsA("BasePlayerGui")
+        if ancestor then
+            return ancestor
+        end
+        return game:GetService("Players").LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    end
+
+    UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+        if gameProcessedEvent then
+            return
+        end
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
             return
         end
@@ -282,12 +298,20 @@ Tab.RegisterElement("CreateDropdown", function(tab, opts)
             return
         end
         task.defer(function()
+            if not isOpen then
+                return
+            end
+            local basePlayerGui = getBasePlayerGui()
             local mousePos = UserInputService:GetMouseLocation()
-            local overHolder = mousePos.X >= Holder.AbsolutePosition.X
-                and mousePos.X <= Holder.AbsolutePosition.X + Holder.AbsoluteSize.X
-                and mousePos.Y >= Holder.AbsolutePosition.Y
-                and mousePos.Y <= Holder.AbsolutePosition.Y + Holder.AbsoluteSize.Y + listHeight + 8
-            if not overHolder then
+            local hitObjects = basePlayerGui and basePlayerGui:GetGuiObjectsAtPosition(mousePos.X, mousePos.Y) or {}
+            local overDropdown = false
+            for _, obj in hitObjects do
+                if obj == HitArea or obj:IsDescendantOf(List) then
+                    overDropdown = true
+                    break
+                end
+            end
+            if not overDropdown then
                 close()
             end
         end)
