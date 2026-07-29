@@ -23,6 +23,16 @@ Window.__index = Window
 local SIDEBAR_WIDTH = Platform.Scale(150, 130)
 local TOPBAR_HEIGHT = Platform.Scale(44, 52)
 
+-- Posicao/altura do icone fixo usado pelo MinimizeStyle "TopbarIcon".
+-- GuiService:GetGuiInset() e API publica e estavel: retorna a altura da
+-- barra nativa do Roblox no topo da tela (ex: 58px). A posicao X, porem,
+-- depende de quantos icones nativos o jogo/plataforma exibe (menu, chat,
+-- voz, e possiveis icones customizados de outros scripts) — isso NAO e
+-- exposto por nenhuma API publica, entao usamos um valor default razoavel
+-- e deixamos configuravel via opts.TopbarIconPosition para quem estiver
+-- codando o script poder ajustar caso o icone fique sobreposto.
+local DEFAULT_TOPBAR_ICON_X = 220
+
 function Window.new(Black, opts)
     opts = opts or {}
     local theme = Create.GetTheme()
@@ -37,6 +47,12 @@ function Window.new(Black, opts)
     self.Toggled = true
     self.MinimizeKey = opts.ToggleKeybind or Enum.KeyCode.RightControl
     self.Minimized = false
+    -- Estilo de minimizacao (decidido por quem cria a janela, via CreateWindow):
+    --   "Compact"    (default) - colapsa para uma barra pequena no lugar da janela
+    --   "TopbarIcon" - esconde a janela e mostra um icone fixo perto da barra
+    --                  nativa do Roblox (canto superior esquerdo), que restaura
+    --                  a janela ao ser clicado
+    self.MinimizeStyle = opts.MinimizeStyle or "Compact"
 
     self.Destroying = Signal.new()
 
@@ -282,6 +298,79 @@ function Window.new(Black, opts)
     -- Drag pela topbar (arrasta a sombra, que e o container externo; o Root acompanha por ser filho)
     self._dragConn = Draggable.Enable(self.Shadow, self.Topbar, { ClampToScreen = true })
 
+    -- Reclampa a posicao sempre que o viewport mudar de tamanho (ex: janela do
+    -- jogo redimensionada, mudanca de resolucao), para a janela nunca ficar
+    -- fora da tela e inacessivel.
+    local camera = workspace.CurrentCamera
+    if camera then
+        self._viewportConn = camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+            Draggable.ClampToScreen(self.Shadow)
+        end)
+    end
+
+    -- Icone fixo estilo "TopbarIcon": botao redondo perto da barra nativa
+    -- do Roblox (canto superior esquerdo), usado apenas quando
+    -- MinimizeStyle == "TopbarIcon". Fica oculto enquanto a janela nao
+    -- estiver minimizada. Posicionado apos a barra nativa de icones do
+    -- Roblox (ver DEFAULT_TOPBAR_ICON_X); ajustavel via opts.TopbarIconPosition
+    -- caso fique sobreposto aos icones nativos em algum jogo especifico.
+    local GuiService = game:GetService("GuiService")
+    local nativeInsetTop = select(1, GuiService:GetGuiInset()).Y
+    local iconSize = 32
+    local iconY = math.max(4, (nativeInsetTop - iconSize) / 2)
+
+    self.TopbarIconButton = Create.New("TextButton", {
+        Name = "TopbarIconRestore",
+        BackgroundColor3 = Theme_("SurfaceElevated"),
+        AnchorPoint = Vector2.new(0, 0),
+        Position = opts.TopbarIconPosition or UDim2.fromOffset(DEFAULT_TOPBAR_ICON_X, iconY),
+        Size = UDim2.fromOffset(iconSize, iconSize),
+        AutoButtonColor = false,
+        Visible = false,
+        Text = "",
+        ZIndex = 50,
+        Parent = Black.ScreenGui,
+        Children = {
+            Create.New("UICorner", { CornerRadius = theme.CornerRadiusPill }),
+            Create.New("UIStroke", { Color = Theme_("BorderStrong"), Thickness = 1, Transparency = 0.3 }),
+        },
+    })
+
+    if hasIcon then
+        Create.New("ImageLabel", {
+            Name = "Icon",
+            BackgroundTransparency = 1,
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.fromScale(0.5, 0.5),
+            Size = UDim2.fromOffset(16, 16),
+            Image = opts.Icon,
+            ImageColor3 = opts.IconColor or Color3.fromRGB(255, 255, 255),
+            ZIndex = 51,
+            Parent = self.TopbarIconButton,
+        })
+    else
+        Create.New("TextLabel", {
+            Name = "Glyph",
+            BackgroundTransparency = 1,
+            Size = UDim2.fromScale(1, 1),
+            Font = Theme_("FontBold"),
+            Text = string.sub(self.Name, 1, 1):upper(),
+            TextColor3 = Theme_("Text"),
+            TextSize = 14,
+            ZIndex = 51,
+            Parent = self.TopbarIconButton,
+        })
+    end
+
+    Tween.ApplyHoverPress(self.TopbarIconButton, {
+        Normal = theme.SurfaceElevated,
+        Hover = theme.SurfaceHover,
+    }, theme)
+
+    self.TopbarIconButton.MouseButton1Click:Connect(function()
+        self:ToggleMinimize()
+    end)
+
     -- Minimize
     local expandedSize = size
     local shadowPadding = UDim2.fromOffset(56, 56)
@@ -315,6 +404,22 @@ function Window:ToggleMinimize()
     local theme = Create.GetTheme()
     self.Minimized = not self.Minimized
 
+    if self.MinimizeStyle == "TopbarIcon" then
+        if self.Minimized then
+            -- Esconde a janela inteira e mostra o icone fixo no lugar dela.
+            self.Shadow.Visible = false
+            self.TopbarIconButton.Visible = true
+        else
+            self.Shadow.Visible = true
+            self.TopbarIconButton.Visible = false
+            task.delay(0, function()
+                Draggable.ClampToScreen(self.Shadow)
+            end)
+        end
+        return
+    end
+
+    -- Estilo "Compact" (default): colapsa para uma barra pequena.
     if self.Minimized then
         self.Body.Visible = false
         Tween.Play(self.Root, theme.TweenNormal, { Size = self._minimizedSize })
@@ -324,11 +429,21 @@ function Window:ToggleMinimize()
         Tween.Play(self.Root, theme.TweenNormal, { Size = self._expandedSize })
         Tween.Play(self.Shadow, theme.TweenNormal, { Size = self._expandedSize + self._shadowPadding })
     end
+
+    -- Reclampa a posicao apos o tween de tamanho terminar, garantindo que a
+    -- janela (minimizada ou nao) nunca fique parcialmente/totalmente fora
+    -- da tela e, portanto, inacessivel.
+    task.delay(theme.TweenNormal.Time + 0.02, function()
+        Draggable.ClampToScreen(self.Shadow)
+    end)
 end
 
 function Window:SetVisible(visible)
     self.Toggled = visible
-    self.Shadow.Visible = visible
+    self.Shadow.Visible = visible and not (self.MinimizeStyle == "TopbarIcon" and self.Minimized)
+    if not visible and self.MinimizeStyle == "TopbarIcon" then
+        self.TopbarIconButton.Visible = false
+    end
 end
 
 function Window:CreateTab(opts)
@@ -371,6 +486,14 @@ function Window:Destroy()
     if self._dragConn then
         self._dragConn:Disconnect()
         self._dragConn = nil
+    end
+    if self._viewportConn then
+        self._viewportConn:Disconnect()
+        self._viewportConn = nil
+    end
+    if self.TopbarIconButton then
+        self.TopbarIconButton:Destroy()
+        self.TopbarIconButton = nil
     end
     self.Shadow:Destroy()
 end

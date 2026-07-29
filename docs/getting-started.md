@@ -28,6 +28,8 @@ Opções de `CreateWindow`:
 | `IconColor` | `Color3?` | Cor aplicada ao ícone (default: branco) |
 | `Size` | `UDim2?` | Tamanho inicial da janela |
 | `ToggleKeybind` | `Enum.KeyCode?` | Tecla que minimiza/restaura a janela |
+| `MinimizeStyle` | `"Compact"` \| `"TopbarIcon"` | Comportamento ao clicar em minimizar. `"Compact"` (default) colapsa a janela numa barra pequena. `"TopbarIcon"` esconde a janela inteira e mostra um ícone fixo ao lado da barra nativa de ícones do Roblox (menu/chat/voz), que restaura a janela ao ser clicado |
+| `TopbarIconPosition` | `UDim2?` | Só usado com `MinimizeStyle = "TopbarIcon"`. Sobrescreve a posição do ícone fixo, caso o valor default fique sobreposto aos ícones nativos em algum jogo específico (o número de ícones nativos varia por jogo/plataforma) |
 
 ## Criando tabs
 

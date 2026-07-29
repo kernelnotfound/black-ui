@@ -1,0 +1,1 @@
+Always re-clamp window position after minimize/maximize and on viewport resize; add MinimizeStyle "TopbarIcon" option (icon next to native Roblox topbar icons, chosen by whoever codes the script)
