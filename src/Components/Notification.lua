@@ -45,13 +45,26 @@ function Notification.Init(Black)
         local duration = opts.Duration or opts.Time or 3
         local typeKey = TypeColors[opts.Type or "Info"] or "Accent"
 
+        -- Toast: sua posicao dentro de "Area" e controlada inteiramente pelo
+        -- UIListLayout do pai (empilha de baixo para cima). Nao definimos
+        -- Position no Toast em si — a animacao de entrada (slide) e feita
+        -- numa sub-frame interna "Slider", preservando o layout automatico.
         local Toast = Create.New("Frame", {
             Name = "Toast",
-            BackgroundColor3 = Theme_("Surface"),
+            BackgroundTransparency = 1,
             Size = UDim2.new(1, 0, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
             ClipsDescendants = true,
             Parent = Area,
+        })
+
+        local Slider = Create.New("Frame", {
+            Name = "Slider",
+            BackgroundColor3 = Theme_("Surface"),
+            Position = UDim2.fromOffset(40, 0),
+            Size = UDim2.new(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Parent = Toast,
             Children = {
                 Create.New("UICorner", { CornerRadius = theme.CornerRadiusSmall }),
                 Create.New("UIStroke", { Color = Theme_("Border"), Thickness = 1 }),
@@ -63,7 +76,7 @@ function Notification.Init(Black)
             Name = "AccentBar",
             BackgroundColor3 = Theme_(typeKey),
             Size = UDim2.new(0, 3, 1, 0),
-            Parent = Toast,
+            Parent = Slider,
             Children = {
                 Create.New("UICorner", { CornerRadius = UDim.new(1, 0) }),
             },
@@ -74,7 +87,7 @@ function Notification.Init(Black)
             Position = UDim2.fromOffset(14, 10),
             Size = UDim2.new(1, -24, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
-            Parent = Toast,
+            Parent = Slider,
             Children = {
                 Create.New("UIListLayout", { Padding = UDim.new(0, 2) }),
             },
@@ -125,7 +138,7 @@ function Notification.Init(Black)
             Position = UDim2.new(0, 0, 1, 0),
             Size = UDim2.new(1, 0, 0, 2),
             BackgroundColor3 = Theme_("Border"),
-            Parent = Toast,
+            Parent = Slider,
         })
         local ProgressFill = Create.New("Frame", {
             Size = UDim2.new(1, 0, 1, 0),
@@ -133,11 +146,8 @@ function Notification.Init(Black)
             Parent = ProgressTrack,
         })
 
-        -- Animacao de entrada: slide + fade
-        Toast.Position = UDim2.fromOffset(40, 0)
-        local groupTransparency = Instance.new("NumberValue")
-
-        for _, descendant in Toast:GetDescendants() do
+        -- Animacao de entrada: slide (na sub-frame "Slider") + fade
+        for _, descendant in Slider:GetDescendants() do
             if descendant:IsA("GuiObject") then
                 if descendant:IsA("TextLabel") then
                     descendant.TextTransparency = 1
@@ -147,10 +157,10 @@ function Notification.Init(Black)
             end
         end
 
-        Toast.BackgroundTransparency = 1
-        Tween.Play(Toast, theme.TweenNormal, { Position = UDim2.fromOffset(0, 0), BackgroundTransparency = 0 })
+        Slider.BackgroundTransparency = 1
+        Tween.Play(Slider, theme.TweenNormal, { Position = UDim2.fromOffset(0, 0), BackgroundTransparency = 0 })
 
-        for _, descendant in Toast:GetDescendants() do
+        for _, descendant in Slider:GetDescendants() do
             if descendant:IsA("TextLabel") then
                 Tween.Play(descendant, theme.TweenNormal, { TextTransparency = 0 })
             end
@@ -161,8 +171,8 @@ function Notification.Init(Black)
         })
 
         local function dismiss()
-            Tween.Play(Toast, theme.TweenFast, { Position = UDim2.fromOffset(40, 0), BackgroundTransparency = 1 })
-            for _, descendant in Toast:GetDescendants() do
+            Tween.Play(Slider, theme.TweenFast, { Position = UDim2.fromOffset(40, 0), BackgroundTransparency = 1 })
+            for _, descendant in Slider:GetDescendants() do
                 if descendant:IsA("TextLabel") then
                     Tween.Play(descendant, theme.TweenFast, { TextTransparency = 1 })
                 elseif descendant:IsA("Frame") or descendant:IsA("UICorner") then

@@ -142,29 +142,33 @@ function Window.new(Black, opts)
         })
     end
 
+    local hasSubTitle = self.SubTitle ~= nil and self.SubTitle ~= ""
+
     local TitleLabel = Create.New("TextLabel", {
         Name = "Title",
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(titleLeftOffset, 0),
-        Size = UDim2.new(1, -(titleLeftOffset + 84), 1, 0),
+        Position = UDim2.fromOffset(titleLeftOffset, hasSubTitle and 6 or 0),
+        Size = UDim2.new(1, -(titleLeftOffset + 84), hasSubTitle and 0 or 1, hasSubTitle and 16 or 0),
         Font = Theme_("FontSemibold"),
         Text = self.Name .. titleVersion,
         TextColor3 = Theme_("Text"),
         TextSize = 14,
         TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = hasSubTitle and Enum.TextYAlignment.Center or Enum.TextYAlignment.Center,
         Parent = self.Topbar,
     })
 
-    if self.SubTitle then
+    if hasSubTitle then
         Create.New("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(titleLeftOffset, 15),
+            Position = UDim2.fromOffset(titleLeftOffset, 23),
             Size = UDim2.new(1, -(titleLeftOffset + 84), 0, 14),
             Font = Theme_("Font"),
             Text = self.SubTitle,
             TextColor3 = Theme_("TextSecondary"),
             TextSize = 11,
             TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Center,
             Parent = self.Topbar,
         })
     end
