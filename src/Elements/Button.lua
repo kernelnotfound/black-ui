@@ -1,0 +1,96 @@
+--[[
+    Black UI Library
+    Elements/Button.lua
+
+    Botao simples com nome + descricao opcional, feedback de hover/press.
+]]
+
+local Create = require(script.Parent.Parent.Utilities.Create)
+local Tween = require(script.Parent.Parent.Utilities.Tween)
+local HelpButton = require(script.Parent.Parent.Utilities.HelpButton)
+local Tab = require(script.Parent.Parent.Tab)
+local Theme_ = Create.Theme
+
+Tab.RegisterElement("CreateButton", function(tab, opts)
+    opts = opts or {}
+    local theme = Create.GetTheme()
+
+    local hasDescription = opts.Description ~= nil and opts.Description ~= ""
+    local hasHelp = opts.Help ~= nil and opts.Help ~= ""
+    local height = hasDescription and 52 or 38
+    local rightMargin = hasHelp and 46 or 20
+
+    local Holder = Create.New("TextButton", {
+        Name = "Button_" .. (opts.Name or "Button"),
+        BackgroundColor3 = Theme_("Surface"),
+        AutoButtonColor = false,
+        Size = UDim2.new(1, 0, 0, height),
+        Text = "",
+        Parent = tab.Page,
+        Children = {
+            Create.New("UICorner", { CornerRadius = theme.CornerRadiusSmall }),
+            Create.New("UIStroke", { Color = Theme_("Border"), Thickness = 1, Transparency = 0.5 }),
+            Create.New("UIPadding", {
+                PaddingLeft = UDim.new(0, 12),
+                PaddingRight = UDim.new(0, 12),
+            }),
+        },
+    })
+
+    local NameLabel = Create.New("TextLabel", {
+        Name = "NameLabel",
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -rightMargin, 0, 18),
+        Font = theme.FontSemibold,
+        Text = opts.Name or "Button",
+        TextColor3 = theme.Text,
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        Parent = Holder,
+    })
+
+    if hasDescription then
+        NameLabel.AnchorPoint = Vector2.new(0, 0)
+        NameLabel.Position = UDim2.fromOffset(0, 8)
+
+        Create.New("TextLabel", {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(0, 28),
+            Size = UDim2.new(1, -rightMargin, 0, 16),
+            Font = theme.Font,
+            Text = opts.Description,
+            TextColor3 = theme.TextSecondary,
+            TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextWrapped = true,
+            Parent = Holder,
+        })
+    else
+        NameLabel.AnchorPoint = Vector2.new(0, 0.5)
+        NameLabel.Position = UDim2.new(0, 0, 0.5, 0)
+    end
+
+    Tween.ApplyHoverPress(Holder, {
+        Normal = theme.Surface,
+        Hover = theme.SurfaceElevated,
+        Press = theme.SurfaceHover,
+    }, theme)
+
+    HelpButton.Attach(Holder, opts.Help)
+
+    Holder.MouseButton1Click:Connect(function()
+        if opts.Callback then
+            task.spawn(opts.Callback)
+        end
+    end)
+
+    local api = {
+        Instance = Holder,
+        SetName = function(_, name)
+            NameLabel.Text = name
+        end,
+    }
+
+    return api
+end)
