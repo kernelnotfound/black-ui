@@ -69,7 +69,7 @@ function rewriteRequires(source, currentKey) {
             resolved = resolved + "/init";
         }
 
-        return `require("${resolved}")`;
+        return `__require("${resolved}")`;
     });
 }
 
@@ -104,7 +104,7 @@ ${entries.map((e) => "    " + e.replace(/\n/g, "\n    ")).join("\n")}
 
 local __cache = {}
 
-local function require(path)
+local function __require(path)
     if __cache[path] ~= nil then
         return __cache[path]
     end
@@ -117,7 +117,7 @@ local function require(path)
     return result
 end
 
-return require("init")
+return __require("init")
 `;
 
     fs.mkdirSync(OUT_DIR, { recursive: true });

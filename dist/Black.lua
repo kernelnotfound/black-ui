@@ -15,10 +15,10 @@ local __modules = {
         depender de teclado (o keybind RightControl nao existe no celular).
     ]]
     
-    local Create = require("Utilities/Create")
-    local Draggable = require("Utilities/Draggable")
-    local Tween = require("Utilities/Tween")
-    local Platform = require("Utilities/Platform")
+    local Create = __require("Utilities/Create")
+    local Draggable = __require("Utilities/Draggable")
+    local Tween = __require("Utilities/Tween")
+    local Platform = __require("Utilities/Platform")
     local Theme_ = Create.Theme
     
     local MobileToggle = {}
@@ -107,8 +107,8 @@ local __modules = {
         success, warning, error - cada um muda a cor da barra lateral.
     ]]
     
-    local Create = require("Utilities/Create")
-    local Tween = require("Utilities/Tween")
+    local Create = __require("Utilities/Create")
+    local Tween = __require("Utilities/Tween")
     local Theme_ = Create.Theme
     
     local Notification = {}
@@ -303,9 +303,9 @@ local __modules = {
     
     local Players = game:GetService("Players")
     
-    local Create = require("Utilities/Create")
-    local Tween = require("Utilities/Tween")
-    local Tab = require("Tab")
+    local Create = __require("Utilities/Create")
+    local Tween = __require("Utilities/Tween")
+    local Tab = __require("Tab")
     local Theme_ = Create.Theme
     
     local DEVELOPER_CREDIT = "Discord: @falsocrime"
@@ -459,10 +459,10 @@ local __modules = {
         Botao simples com nome + descricao opcional, feedback de hover/press.
     ]]
     
-    local Create = require("Utilities/Create")
-    local Tween = require("Utilities/Tween")
-    local HelpButton = require("Utilities/HelpButton")
-    local Tab = require("Tab")
+    local Create = __require("Utilities/Create")
+    local Tween = __require("Utilities/Tween")
+    local HelpButton = __require("Utilities/HelpButton")
+    local Tab = __require("Tab")
     local Theme_ = Create.Theme
     
     Tab.RegisterElement("CreateButton", function(tab, opts)
@@ -564,11 +564,11 @@ local __modules = {
     
     local UserInputService = game:GetService("UserInputService")
     
-    local Create = require("Utilities/Create")
-    local Tween = require("Utilities/Tween")
-    local Signal = require("Utilities/Signal")
-    local HelpButton = require("Utilities/HelpButton")
-    local Tab = require("Tab")
+    local Create = __require("Utilities/Create")
+    local Tween = __require("Utilities/Tween")
+    local Signal = __require("Utilities/Signal")
+    local HelpButton = __require("Utilities/HelpButton")
+    local Tab = __require("Tab")
     local Theme_ = Create.Theme
     
     Tab.RegisterElement("CreateColorPicker", function(tab, opts)
@@ -856,11 +856,11 @@ local __modules = {
     
     local UserInputService = game:GetService("UserInputService")
     
-    local Create = require("Utilities/Create")
-    local Tween = require("Utilities/Tween")
-    local Signal = require("Utilities/Signal")
-    local HelpButton = require("Utilities/HelpButton")
-    local Tab = require("Tab")
+    local Create = __require("Utilities/Create")
+    local Tween = __require("Utilities/Tween")
+    local Signal = __require("Utilities/Signal")
+    local HelpButton = __require("Utilities/HelpButton")
+    local Tab = __require("Tab")
     local Theme_ = Create.Theme
     
     -- Rastreia o dropdown aberto atualmente (so um pode estar aberto por vez)
@@ -1178,10 +1178,10 @@ local __modules = {
         suporte a Numeric (filtra apenas digitos).
     ]]
     
-    local Create = require("Utilities/Create")
-    local Signal = require("Utilities/Signal")
-    local HelpButton = require("Utilities/HelpButton")
-    local Tab = require("Tab")
+    local Create = __require("Utilities/Create")
+    local Signal = __require("Utilities/Signal")
+    local HelpButton = __require("Utilities/HelpButton")
+    local Tab = __require("Tab")
     local Theme_ = Create.Theme
     
     Tab.RegisterElement("CreateInput", function(tab, opts)
@@ -1320,11 +1320,11 @@ local __modules = {
     
     local UserInputService = game:GetService("UserInputService")
     
-    local Create = require("Utilities/Create")
-    local Tween = require("Utilities/Tween")
-    local Signal = require("Utilities/Signal")
-    local HelpButton = require("Utilities/HelpButton")
-    local Tab = require("Tab")
+    local Create = __require("Utilities/Create")
+    local Tween = __require("Utilities/Tween")
+    local Signal = __require("Utilities/Signal")
+    local HelpButton = __require("Utilities/HelpButton")
+    local Tab = __require("Tab")
     local Theme_ = Create.Theme
     
     local MouseButtonNames = {
@@ -1475,8 +1475,8 @@ local __modules = {
         Label simples (texto informativo) e Paragraph (bloco maior com wrap).
     ]]
     
-    local Create = require("Utilities/Create")
-    local Tab = require("Tab")
+    local Create = __require("Utilities/Create")
+    local Tab = __require("Tab")
     local Theme_ = Create.Theme
     
     Tab.RegisterElement("CreateLabel", function(tab, opts)
@@ -1625,11 +1625,11 @@ local __modules = {
     
     local UserInputService = game:GetService("UserInputService")
     
-    local Create = require("Utilities/Create")
-    local Tween = require("Utilities/Tween")
-    local Signal = require("Utilities/Signal")
-    local HelpButton = require("Utilities/HelpButton")
-    local Tab = require("Tab")
+    local Create = __require("Utilities/Create")
+    local Tween = __require("Utilities/Tween")
+    local Signal = __require("Utilities/Signal")
+    local HelpButton = __require("Utilities/HelpButton")
+    local Tab = __require("Tab")
     local Theme_ = Create.Theme
     
     Tab.RegisterElement("CreateSlider", function(tab, opts)
@@ -1863,11 +1863,11 @@ local __modules = {
         aparece/desaparece via transparencia ao ativar/desativar.
     ]]
     
-    local Create = require("Utilities/Create")
-    local Tween = require("Utilities/Tween")
-    local Signal = require("Utilities/Signal")
-    local HelpButton = require("Utilities/HelpButton")
-    local Tab = require("Tab")
+    local Create = __require("Utilities/Create")
+    local Tween = __require("Utilities/Tween")
+    local Signal = __require("Utilities/Signal")
+    local HelpButton = __require("Utilities/HelpButton")
+    local Tab = __require("Tab")
     local Theme_ = Create.Theme
     
     Tab.RegisterElement("CreateToggle", function(tab, opts)
@@ -2021,22 +2021,22 @@ local __modules = {
         return CoreGui
     end
     
-    local Create = require("Utilities/Create")
-    local Theme = require("Utilities/Theme")
-    local Window = require("Window")
-    local Notification = require("Components/Notification")
-    local MobileToggle = require("Components/MobileToggle")
-    require("Components/ProfileCard")
+    local Create = __require("Utilities/Create")
+    local Theme = __require("Utilities/Theme")
+    local Window = __require("Window")
+    local Notification = __require("Components/Notification")
+    local MobileToggle = __require("Components/MobileToggle")
+    __require("Components/ProfileCard")
     
     -- Carrega todos os elementos (eles se auto-registram em Tab via Tab.RegisterElement)
-    require("Elements/Button")
-    require("Elements/Toggle")
-    require("Elements/Slider")
-    require("Elements/Input")
-    require("Elements/Dropdown")
-    require("Elements/Label")
-    require("Elements/KeyBind")
-    require("Elements/ColorPicker")
+    __require("Elements/Button")
+    __require("Elements/Toggle")
+    __require("Elements/Slider")
+    __require("Elements/Input")
+    __require("Elements/Dropdown")
+    __require("Elements/Label")
+    __require("Elements/KeyBind")
+    __require("Elements/ColorPicker")
     
     local Black = {
         _VERSION = "1.0.0", -- versao interna da lib (nao exibida na UI)
@@ -2139,8 +2139,8 @@ local __modules = {
         da page via metodos :CreateX().
     ]]
     
-    local Create = require("Utilities/Create")
-    local Tween = require("Utilities/Tween")
+    local Create = __require("Utilities/Create")
+    local Tween = __require("Utilities/Tween")
     local Theme_ = Create.Theme
     
     local Tab = {}
@@ -2444,8 +2444,8 @@ local __modules = {
         depender de um BlurFrame global fixo.
     ]]
     
-    local Create = require("Create")
-    local Tween = require("Tween")
+    local Create = __require("Create")
+    local Tween = __require("Tween")
     local Theme_ = Create.Theme
     
     local HelpButton = {}
@@ -2838,11 +2838,11 @@ local __modules = {
     
     local UserInputService = game:GetService("UserInputService")
     
-    local Create = require("Utilities/Create")
-    local Draggable = require("Utilities/Draggable")
-    local Tween = require("Utilities/Tween")
-    local Platform = require("Utilities/Platform")
-    local Signal = require("Utilities/Signal")
+    local Create = __require("Utilities/Create")
+    local Draggable = __require("Utilities/Draggable")
+    local Tween = __require("Utilities/Tween")
+    local Platform = __require("Utilities/Platform")
+    local Signal = __require("Utilities/Signal")
     local Theme_ = Create.Theme
     
     local Window = {}
@@ -3156,7 +3156,7 @@ local __modules = {
     end
     
     function Window:CreateTab(opts)
-        local Tab = require("Tab")
+        local Tab = __require("Tab")
         local tab = Tab.new(self, opts)
         table.insert(self.Tabs, tab)
     
@@ -3198,7 +3198,7 @@ local __modules = {
 
 local __cache = {}
 
-local function require(path)
+local function __require(path)
     if __cache[path] ~= nil then
         return __cache[path]
     end
@@ -3211,4 +3211,4 @@ local function require(path)
     return result
 end
 
-return require("init")
+return __require("init")
