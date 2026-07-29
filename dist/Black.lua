@@ -49,6 +49,18 @@ local __mod_Utilities_Create = (function()
         return typeof(v) == "table" and getmetatable(v) == ThemeKeyMarker
     end
     
+    -- A propriedade legada "Font" (Enum.Font) nao aceita objetos Font.new(...);
+    -- esses devem ser atribuidos via "FontFace". Para permitir usar `Font = ...`
+    -- na tabela de props (mais natural) com valores de qualquer um dos dois
+    -- tipos, detectamos e redirecionamos automaticamente.
+    local function setFontProperty(inst, value)
+        if typeof(value) == "Font" then
+            inst.FontFace = value
+        else
+            inst.Font = value
+        end
+    end
+    
     function Create.New(className, props)
         local inst = Instance.new(className)
         local themeProps = nil
@@ -62,7 +74,14 @@ local __mod_Utilities_Create = (function()
                 elseif isThemeMarker(value) then
                     themeProps = themeProps or {}
                     themeProps[key] = value.key
-                    inst[key] = ThemeRef and ThemeRef[value.key] or value.key
+                    local resolved = ThemeRef and ThemeRef[value.key] or value.key
+                    if key == "Font" then
+                        setFontProperty(inst, resolved)
+                    else
+                        inst[key] = resolved
+                    end
+                elseif key == "Font" then
+                    setFontProperty(inst, value)
                 else
                     inst[key] = value
                 end
@@ -97,7 +116,11 @@ local __mod_Utilities_Create = (function()
             end
             for prop, key in themeProps do
                 local ok = pcall(function()
-                    inst[prop] = ThemeRef[key]
+                    if prop == "Font" then
+                        setFontProperty(inst, ThemeRef[key])
+                    else
+                        inst[prop] = ThemeRef[key]
+                    end
                 end)
                 if not ok then
                     Create.Registry[inst] = nil
