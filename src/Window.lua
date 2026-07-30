@@ -46,7 +46,15 @@ function Window.new(Black, opts)
     self.TabButtons = {}
     self.ActiveTab = nil
     self.Toggled = true
-    self.MinimizeKey = opts.ToggleKeybind or Enum.KeyCode.RightControl
+    -- ToggleKeybind aceita: Enum.KeyCode (customiza a tecla), false (desabilita
+    -- o keybind global desta janela - util quando o script cria mais de uma
+    -- janela Black UI e cada uma precisa de uma tecla diferente, ou nenhuma),
+    -- ou nil/omitido (usa o default RightControl).
+    if opts.ToggleKeybind == false then
+        self.MinimizeKey = nil
+    else
+        self.MinimizeKey = opts.ToggleKeybind or Enum.KeyCode.RightControl
+    end
     self.Minimized = false
     -- Estilo de minimizacao (decidido por quem cria a janela, via CreateWindow):
     --   "Compact"    (default) - colapsa para uma barra pequena no lugar da janela
@@ -405,15 +413,17 @@ function Window.new(Black, opts)
         self:SetVisible(false)
     end)
 
-    -- Keybind global de toggle
-    self._inputConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then
-            return
-        end
-        if input.KeyCode == self.MinimizeKey then
-            self:SetVisible(not self.Toggled)
-        end
-    end)
+    -- Keybind global de toggle (desabilitado se MinimizeKey for nil, ver acima)
+    if self.MinimizeKey then
+        self._inputConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+            if gameProcessed then
+                return
+            end
+            if input.KeyCode == self.MinimizeKey then
+                self:SetVisible(not self.Toggled)
+            end
+        end)
+    end
 
     self._expandedSize = expandedSize
     self._minimizedSize = UDim2.fromOffset(220, TOPBAR_HEIGHT)

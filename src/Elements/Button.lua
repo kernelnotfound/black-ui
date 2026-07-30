@@ -59,7 +59,8 @@ Tab.RegisterElement("CreateButton", function(tab, opts)
             Name = "DescriptionLabel",
             BackgroundTransparency = 1,
             Position = UDim2.fromOffset(0, 20),
-            Size = UDim2.new(1, -rightMargin, 0, 16),
+            Size = UDim2.new(1, -rightMargin, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
             Font = theme.Font,
             Text = opts.Description,
             TextColor3 = theme.TextSecondary,
@@ -70,15 +71,19 @@ Tab.RegisterElement("CreateButton", function(tab, opts)
             Parent = Holder,
         })
 
-        -- Ajusta a altura do card ao numero real de linhas da descricao
-        -- (TextBounds so fica correto depois do texto ser layoutado).
+        -- Ajusta a altura do card ao numero real de linhas da descricao.
+        -- DescriptionLabel usa AutomaticSize.Y (a label em si cresce para
+        -- caber o texto, evitando o corte que ocorria com uma altura fixa);
+        -- aqui so propagamos essa altura para o card (Holder) que a contem,
+        -- ja que o UIListLayout da Tab.Page precisa do Holder com o tamanho
+        -- final correto para nao sobrepor o proximo elemento.
         local function resizeToFitDescription()
-            local descHeight = DescriptionLabel.TextBounds.Y
+            local descHeight = DescriptionLabel.AbsoluteSize.Y
             -- PaddingTop(8) + NameLabel/gap(20) + descHeight + PaddingBottom(8)
             local totalHeight = 8 + 20 + descHeight + 8
             Holder.Size = UDim2.new(1, 0, 0, math.max(52, totalHeight))
         end
-        DescriptionLabel:GetPropertyChangedSignal("TextBounds"):Connect(resizeToFitDescription)
+        DescriptionLabel:GetPropertyChangedSignal("AbsoluteSize"):Connect(resizeToFitDescription)
         resizeToFitDescription()
     else
         NameLabel.AnchorPoint = Vector2.new(0, 0.5)

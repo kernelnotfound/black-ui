@@ -1606,7 +1606,8 @@ local __mod_Elements_Button = (function()
                 Name = "DescriptionLabel",
                 BackgroundTransparency = 1,
                 Position = UDim2.fromOffset(0, 20),
-                Size = UDim2.new(1, -rightMargin, 0, 16),
+                Size = UDim2.new(1, -rightMargin, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
                 Font = theme.Font,
                 Text = opts.Description,
                 TextColor3 = theme.TextSecondary,
@@ -1617,15 +1618,19 @@ local __mod_Elements_Button = (function()
                 Parent = Holder,
             })
     
-            -- Ajusta a altura do card ao numero real de linhas da descricao
-            -- (TextBounds so fica correto depois do texto ser layoutado).
+            -- Ajusta a altura do card ao numero real de linhas da descricao.
+            -- DescriptionLabel usa AutomaticSize.Y (a label em si cresce para
+            -- caber o texto, evitando o corte que ocorria com uma altura fixa);
+            -- aqui so propagamos essa altura para o card (Holder) que a contem,
+            -- ja que o UIListLayout da Tab.Page precisa do Holder com o tamanho
+            -- final correto para nao sobrepor o proximo elemento.
             local function resizeToFitDescription()
-                local descHeight = DescriptionLabel.TextBounds.Y
+                local descHeight = DescriptionLabel.AbsoluteSize.Y
                 -- PaddingTop(8) + NameLabel/gap(20) + descHeight + PaddingBottom(8)
                 local totalHeight = 8 + 20 + descHeight + 8
                 Holder.Size = UDim2.new(1, 0, 0, math.max(52, totalHeight))
             end
-            DescriptionLabel:GetPropertyChangedSignal("TextBounds"):Connect(resizeToFitDescription)
+            DescriptionLabel:GetPropertyChangedSignal("AbsoluteSize"):Connect(resizeToFitDescription)
             resizeToFitDescription()
         else
             NameLabel.AnchorPoint = Vector2.new(0, 0.5)
@@ -3416,7 +3421,15 @@ local __mod_Window = (function()
         self.TabButtons = {}
         self.ActiveTab = nil
         self.Toggled = true
-        self.MinimizeKey = opts.ToggleKeybind or Enum.KeyCode.RightControl
+        -- ToggleKeybind aceita: Enum.KeyCode (customiza a tecla), false (desabilita
+        -- o keybind global desta janela - util quando o script cria mais de uma
+        -- janela Black UI e cada uma precisa de uma tecla diferente, ou nenhuma),
+        -- ou nil/omitido (usa o default RightControl).
+        if opts.ToggleKeybind == false then
+            self.MinimizeKey = nil
+        else
+            self.MinimizeKey = opts.ToggleKeybind or Enum.KeyCode.RightControl
+        end
         self.Minimized = false
         -- Estilo de minimizacao (decidido por quem cria a janela, via CreateWindow):
         --   "Compact"    (default) - colapsa para uma barra pequena no lugar da janela
@@ -3775,15 +3788,17 @@ local __mod_Window = (function()
             self:SetVisible(false)
         end)
     
-        -- Keybind global de toggle
-        self._inputConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-            if gameProcessed then
-                return
-            end
-            if input.KeyCode == self.MinimizeKey then
-                self:SetVisible(not self.Toggled)
-            end
-        end)
+        -- Keybind global de toggle (desabilitado se MinimizeKey for nil, ver acima)
+        if self.MinimizeKey then
+            self._inputConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+                if gameProcessed then
+                    return
+                end
+                if input.KeyCode == self.MinimizeKey then
+                    self:SetVisible(not self.Toggled)
+                end
+            end)
+        end
     
         self._expandedSize = expandedSize
         self._minimizedSize = UDim2.fromOffset(220, TOPBAR_HEIGHT)
