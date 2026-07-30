@@ -62,6 +62,7 @@ require(script.Elements.Dropdown)
 require(script.Elements.Label)
 require(script.Elements.KeyBind)
 require(script.Elements.ColorPicker)
+require(script.Elements.ListItem)
 
 local Black = {
     _VERSION = "1.0.0", -- versao interna da lib (nao exibida na UI)
