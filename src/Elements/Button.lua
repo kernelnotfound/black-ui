@@ -17,14 +17,13 @@ Tab.RegisterElement("CreateButton", function(tab, opts)
 
     local hasDescription = opts.Description ~= nil and opts.Description ~= ""
     local hasHelp = opts.Help ~= nil and opts.Help ~= ""
-    local height = hasDescription and 52 or 38
     local rightMargin = hasHelp and 46 or 20
 
     local Holder = Create.New("TextButton", {
         Name = "Button_" .. (opts.Name or "Button"),
         BackgroundColor3 = Theme_("Surface"),
         AutoButtonColor = false,
-        Size = UDim2.new(1, 0, 0, height),
+        Size = UDim2.new(1, 0, 0, hasDescription and 52 or 38),
         Text = "",
         Parent = tab.Page,
         Children = {
@@ -33,6 +32,8 @@ Tab.RegisterElement("CreateButton", function(tab, opts)
             Create.New("UIPadding", {
                 PaddingLeft = UDim.new(0, 12),
                 PaddingRight = UDim.new(0, 12),
+                PaddingTop = UDim.new(0, 8),
+                PaddingBottom = UDim.new(0, 8),
             }),
         },
     })
@@ -52,20 +53,33 @@ Tab.RegisterElement("CreateButton", function(tab, opts)
 
     if hasDescription then
         NameLabel.AnchorPoint = Vector2.new(0, 0)
-        NameLabel.Position = UDim2.fromOffset(0, 8)
+        NameLabel.Position = UDim2.fromOffset(0, 0)
 
-        Create.New("TextLabel", {
+        local DescriptionLabel = Create.New("TextLabel", {
+            Name = "DescriptionLabel",
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(0, 28),
+            Position = UDim2.fromOffset(0, 20),
             Size = UDim2.new(1, -rightMargin, 0, 16),
             Font = theme.Font,
             Text = opts.Description,
             TextColor3 = theme.TextSecondary,
             TextSize = 12,
             TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top,
             TextWrapped = true,
             Parent = Holder,
         })
+
+        -- Ajusta a altura do card ao numero real de linhas da descricao
+        -- (TextBounds so fica correto depois do texto ser layoutado).
+        local function resizeToFitDescription()
+            local descHeight = DescriptionLabel.TextBounds.Y
+            -- PaddingTop(8) + NameLabel/gap(20) + descHeight + PaddingBottom(8)
+            local totalHeight = 8 + 20 + descHeight + 8
+            Holder.Size = UDim2.new(1, 0, 0, math.max(52, totalHeight))
+        end
+        DescriptionLabel:GetPropertyChangedSignal("TextBounds"):Connect(resizeToFitDescription)
+        resizeToFitDescription()
     else
         NameLabel.AnchorPoint = Vector2.new(0, 0.5)
         NameLabel.Position = UDim2.new(0, 0, 0.5, 0)

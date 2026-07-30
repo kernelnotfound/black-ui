@@ -63,6 +63,7 @@ Tab.RegisterElement("CreateInput", function(tab, opts)
         PlaceholderColor3 = theme.TextDisabled,
         TextColor3 = theme.Text,
         TextSize = 13,
+        TextTruncate = Enum.TextTruncate.AtEnd,
         ClearTextOnFocus = opts.ClearTextOnFocus == true,
         TextXAlignment = Enum.TextXAlignment.Left,
         Parent = Holder,
