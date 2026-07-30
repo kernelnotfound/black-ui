@@ -1566,11 +1566,22 @@ local __mod_Elements_Button = (function()
         local hasHelp = opts.Help ~= nil and opts.Help ~= ""
         local rightMargin = hasHelp and 46 or 20
     
+        -- Holder usa AutomaticSize.Y (mesmo padrao do Paragraph em Label.lua) em
+        -- vez de altura fixa: descricoes longas que quebram em multiplas linhas
+        -- fazem o card crescer naturalmente, sem calculo manual de
+        -- AbsoluteSize/TextBounds (que dependia do timing do layout e podia
+        -- cortar o texto na primeira renderizacao).
+        --
+        -- NameLabel/DescriptionLabel ficam num sub-frame (TextHolder) com seu
+        -- proprio UIListLayout, em vez do UIListLayout estar direto no Holder --
+        -- assim o HelpButton (ancorado no canto via AnchorPoint/Position, sem
+        -- LayoutOrder) nao e "capturado" e reposicionado pelo layout automatico.
         local Holder = Create.New("TextButton", {
             Name = "Button_" .. (opts.Name or "Button"),
             BackgroundColor3 = Theme_("Surface"),
             AutoButtonColor = false,
-            Size = UDim2.new(1, 0, 0, hasDescription and 52 or 38),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Size = UDim2.new(1, 0, 0, 0),
             Text = "",
             Parent = tab.Page,
             Children = {
@@ -1579,8 +1590,22 @@ local __mod_Elements_Button = (function()
                 Create.New("UIPadding", {
                     PaddingLeft = UDim.new(0, 12),
                     PaddingRight = UDim.new(0, 12),
-                    PaddingTop = UDim.new(0, 8),
-                    PaddingBottom = UDim.new(0, 8),
+                    PaddingTop = UDim.new(0, hasDescription and 8 or 10),
+                    PaddingBottom = UDim.new(0, hasDescription and 8 or 10),
+                }),
+            },
+        })
+    
+        local TextHolder = Create.New("Frame", {
+            Name = "TextHolder",
+            BackgroundTransparency = 1,
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Size = UDim2.new(1, 0, 0, 0),
+            Parent = Holder,
+            Children = {
+                Create.New("UIListLayout", {
+                    SortOrder = Enum.SortOrder.LayoutOrder,
+                    Padding = UDim.new(0, 2),
                 }),
             },
         })
@@ -1595,17 +1620,14 @@ local __mod_Elements_Button = (function()
             TextSize = 14,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextYAlignment = Enum.TextYAlignment.Center,
-            Parent = Holder,
+            LayoutOrder = 1,
+            Parent = TextHolder,
         })
     
         if hasDescription then
-            NameLabel.AnchorPoint = Vector2.new(0, 0)
-            NameLabel.Position = UDim2.fromOffset(0, 0)
-    
-            local DescriptionLabel = Create.New("TextLabel", {
+            Create.New("TextLabel", {
                 Name = "DescriptionLabel",
                 BackgroundTransparency = 1,
-                Position = UDim2.fromOffset(0, 20),
                 Size = UDim2.new(1, -rightMargin, 0, 0),
                 AutomaticSize = Enum.AutomaticSize.Y,
                 Font = theme.Font,
@@ -1615,26 +1637,9 @@ local __mod_Elements_Button = (function()
                 TextXAlignment = Enum.TextXAlignment.Left,
                 TextYAlignment = Enum.TextYAlignment.Top,
                 TextWrapped = true,
-                Parent = Holder,
+                LayoutOrder = 2,
+                Parent = TextHolder,
             })
-    
-            -- Ajusta a altura do card ao numero real de linhas da descricao.
-            -- DescriptionLabel usa AutomaticSize.Y (a label em si cresce para
-            -- caber o texto, evitando o corte que ocorria com uma altura fixa);
-            -- aqui so propagamos essa altura para o card (Holder) que a contem,
-            -- ja que o UIListLayout da Tab.Page precisa do Holder com o tamanho
-            -- final correto para nao sobrepor o proximo elemento.
-            local function resizeToFitDescription()
-                local descHeight = DescriptionLabel.AbsoluteSize.Y
-                -- PaddingTop(8) + NameLabel/gap(20) + descHeight + PaddingBottom(8)
-                local totalHeight = 8 + 20 + descHeight + 8
-                Holder.Size = UDim2.new(1, 0, 0, math.max(52, totalHeight))
-            end
-            DescriptionLabel:GetPropertyChangedSignal("AbsoluteSize"):Connect(resizeToFitDescription)
-            resizeToFitDescription()
-        else
-            NameLabel.AnchorPoint = Vector2.new(0, 0.5)
-            NameLabel.Position = UDim2.new(0, 0, 0.5, 0)
         end
     
         Tween.ApplyHoverPress(Holder, {
